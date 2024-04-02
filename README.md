@@ -265,7 +265,7 @@ The user can manually click the `Data Table Setting` <sup>2</sup> item and check
 >    TMflow 1.76 second version only:<br/> 
 > If no suitable dongle is detected, warning alerts will be displayed in the window.<br/>
 > ![open_need_dongle_key](figures/open_need_dongle_key.png)
-> TMflow 1.80 version: <br/>
+> TMflow 1.88 version: <br/>
 > The user doesn't need a dongle to activate this function.
 >
 > 3. Click the __Find__ icon.
@@ -393,6 +393,7 @@ The <robot_ip_address> is the IP address of the TM Robot, the user can get it th
 ``source ./install/setup.bash``<br/>
 ``ros2 run demo demo_set_io``<br/>
 > :warning:[CAUTION] Some demos will let the TM Robot move, please be careful.<br/>
+**Note**: When you are finished, press CTRL + C in all terminal windows to shut everything down.<br/>
 ><br/>
 
 
@@ -436,6 +437,7 @@ The <robot_ip_address> is the IP address of the TM Robot, the user can get it th
 > 6. In another new terminal: Source setup.bash in the workspace path and start GUI debug by typing<br/>
 ``source ./install/setup.bash``<br/>
 ``ros2 run ui_for_debug_and_demo robot_ui``<br/>
+**Note**: When you are finished, press CTRL + C in all terminal windows to shut everything down.<br/>
 
 
 ## __7. TM Robot corrected kinematics value loading and robot description file generation__
