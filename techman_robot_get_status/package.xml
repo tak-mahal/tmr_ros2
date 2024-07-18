@@ -8,7 +8,7 @@
   <maintainer email="leo.wu@tm-robot.com">leo wu</maintainer>
   <maintainer email="yh.wang@tm-robot.com">Yh Wang</maintainer>
 
-  <license>BSD</license>
+  <license>BSD-3-Clause</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>

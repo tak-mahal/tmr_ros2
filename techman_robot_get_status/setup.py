@@ -17,7 +17,7 @@ setup(
     maintainer='leo wu',
     maintainer_email='leo.wu@tm-robot.com',
     description='techman robot get status python scripts',
-    license='BSD',
+    license='BSD-3-Clause',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
