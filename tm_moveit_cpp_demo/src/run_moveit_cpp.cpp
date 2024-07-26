@@ -64,12 +64,12 @@ public:
   void run()
   {
     RCLCPP_INFO(LOGGER, "Initialize MoveItCpp");
-    moveit_cpp_ = std::make_shared<moveit::planning_interface::MoveItCpp>(node_);
+    moveit_cpp_ = std::make_shared<moveit_cpp::MoveItCpp>(node_);
     moveit_cpp_->getPlanningSceneMonitor()->providePlanningSceneService();  // let RViz display query PlanningScene
     moveit_cpp_->getPlanningSceneMonitor()->setPlanningScenePublishingFrequency(100);
 
     RCLCPP_INFO(LOGGER, "Initialize PlanningComponent");
-    moveit::planning_interface::PlanningComponent arm("tmr_arm", moveit_cpp_);
+    moveit_cpp::PlanningComponent arm("tmr_arm", moveit_cpp_);
 
     // A little delay before running the plan
     rclcpp::sleep_for(std::chrono::seconds(3));
@@ -104,7 +104,7 @@ public:
 
     // Run actual plan
     RCLCPP_INFO(LOGGER, "Plan to goal");
-    auto plan_solution = arm.plan();
+    const auto plan_solution = arm.plan();
     if (plan_solution)
     {
       RCLCPP_INFO(LOGGER, "arm.execute()");
@@ -119,7 +119,7 @@ public:
     arm.setGoal("home");
 
     // Run actual plan
-    RCLCPP_INFO(LOGGER, "Plan to goal");
+    RCLCPP_INFO(LOGGER, "Plan to home");
     plan_solution = arm.plan();
     if (plan_solution)
     {
@@ -131,7 +131,7 @@ public:
 private:
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
-  moveit::planning_interface::MoveItCppPtr moveit_cpp_;
+  moveit_cpp::MoveItCppPtr moveit_cpp_;
 };
 
 int main(int argc, char** argv)
@@ -149,7 +149,7 @@ int main(int argc, char** argv)
   std::thread run_demo([&demo]() {
     // Let RViz initialize before running demo
     // TODO(henningkayser): use lifecycle events to launch node
-    rclcpp::sleep_for(std::chrono::seconds(5));
+    rclcpp::sleep_for(std::chrono::seconds(20));
     demo.run();
   });
 

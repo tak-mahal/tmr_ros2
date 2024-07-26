@@ -21,6 +21,7 @@ set(moveit2_lib_auto_judge true)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 if (moveit2_lib_auto_judge)
+find_package(moveit_common QUIET)
 find_package(moveit_ros_planning_interface QUIET)
 endif()
 # This shouldn't be necessary (required by moveit_simple_controller_manager)
@@ -48,18 +49,24 @@ if (moveit_ros_planning_interface_FOUND)
     moveit_ros_planning_interface
     Boost
   )
+
   install(TARGETS run_moveit_cpp
     EXPORT export_${PROJECT_NAME}
-    DESTINATION lib/${PROJECT_NAME}
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
+    INCLUDES DESTINATION include
   )
+  ament_export_targets(export_${PROJECT_NAME})
 endif (moveit_ros_planning_interface_FOUND)
 endif()
 
-  install(DIRECTORY launch
-    DESTINATION share/${PROJECT_NAME}
-  )
-  install(DIRECTORY config
-    DESTINATION share/${PROJECT_NAME}
-  )
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}
+)
 
 ament_package()

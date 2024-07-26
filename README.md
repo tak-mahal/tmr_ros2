@@ -214,59 +214,69 @@ The user can manually click the `Data Table Setting` <sup>2</sup> item and check
 >
 > Now, the user can use a new terminal to run each ROS node or command, but don't forget to source the correct setup shell files as starting a new terminal.
 
-> __Usage with MoveIt2 (Tentative)__ 
+> __Usage with MoveIt2-foxy (2.2.3)__ 
 >
 > See [MoveIt2 tutorial](https://moveit.ros.org/install-moveit2/source/) to install the MoveIt2 packages.<br/>
 >
-> Assuming that the user is ready to build MoveIt2, and the user wants to apply the MoveIt by TM Robot, please do'nt forget to source the MoveIt environment, or you can add  ``source <MoveIt_WS>/install/setup.bash`` to your `.bashrc`.<br/>
-> The `<MoveIt_WS>` means the MoveIt2 workspace, for example `COLCON_WS` .<br/>
+> If you plan to use MoveIt, it is recommended to install and use Cyclone DDS.
+> ```bash
+> sudo apt install ros-$ROS_DISTRO-rmw-cyclonedds-cpp
+> export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+> ```
+>
+> The `<MoveIt_WS>` means the MoveIt2 workspace, for example `ws_moveit2` .<br/>
 > The `<TMDriver_WS>` means TM driver workspace, for example `tmdriver_ws` .<br/>
 >
+> To build MoveIt2 
+> ```bash
+> cd ws_moveit2
+> colcon build --event-handlers desktop_notification- status- --cmake-args -DCMAKE_BUILD_TYPE=Release
+> ```
 >
+> Assuming that the user is ready to build MoveIt2, and the user wants to apply the MoveIt by TM Robot, please do'nt forget to source the MoveIt environment, or you can add  ``source <MoveIt_WS>/install/setup.bash`` to your `.bashrc`.<br/>
 > Then to build the TM driver based on the <TMDriver_WS> workspace, please enter the specific workspace `tmdriver_ws` by launching the terminal, and remember to make the workspace visible to ROS.<br/>
 >
 >
 > ```bash
 > source /opt/ros/foxy/setup.bash
-> source ~/COLCON_WS/install/setup.bash
+> export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 > cd ~/tmdriver_ws 
-> colcon build
+> source ~/ws_moveit2/install/setup.bash
+> colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 > source ./install/setup.bash
 > ```
 >
-> :bulb: If you have built the TM driver before, you must use `colcon build --cmake-clean-cache` or `colcon build --cmake-force-configure` instead of `colcon build` in the previous step to force execution CMake configuration step, for example<br/>
+> :bulb: If you have built the TM driver before, it is recommended that you delete the build, install and log folders by the command `rm -rf build install log`, and rebuild it. For example,<br/>
 >
 >
 > ```bash
 > source /opt/ros/foxy/setup.bash
-> source ~/COLCON_WS/install/setup.bash
+> export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 > cd ~/tmdriver_ws 
-> colcon build --cmake-clean-cache
+> rm -rf build install log
+> source ~/ws_moveit2/install/setup.bash
+> colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 > source ./install/setup.bash
 > ```
 >
 > The demo launches the RViz GUI and demonstrates planning and execution of a simple collision-free motion plan with TM Robot.<br/> 
 > :bulb: Do you prepare the __TM Robot__ ready ? Make sure that TM Robot's operating software (__TMflow__) network settings are ready and the __Listen node__ is running.<br/>
 >
-> To bring up the MoveIt2 demo environment in simulation mode with virtual TM Robot (Example: TM5-900), by typing<br/>
+> * To bring up the MoveIt2 demo environment in simulation mode with the virtual TM Robot, by typing<br/>
 >
 >
+> ```bash
+> ros2 launch tm_moveit_cpp_demo <tm_robot_type>_run_moveit_cpp.launch.py
+> ```
+>
+>> The prefix `<tm_robot_type>` means the TM Robot type, available for tm5-900, tm5-700, tm12, and tm14 models, as well as the eyeless models tm5x-900, tm5x-700, tm12x and tm14x models.<br/>
+>
+> Taking the TM5-900 robot as an example, use the commands introduced above, by typing
 > ```bash
 > ros2 launch tm_moveit_cpp_demo tm5-900_run_moveit_cpp.launch.py
 > ```
-> :bookmark_tabs: Note1: There are several built-in TM Robot nominal robot model settings, available for the tm5-900, tm5-700, tm12, and tm14 models, as well as the eyeless models tm5x-900, tm5x-700, tm12x, and tm14x models.<br/>
-> <br/>
 >
-> The user can also manipulate the real TM5-900 Robot (Example: TM5-900) to run, by typing<br/>
->> :warning:[CAUTION] This demo will let the real TM Robot move, please be careful. If the user is a beginner or unfamiliar with the arm movement path, it is recommended that the user place his hand on the big red emergency _Stick Stop Button_ at any time, and press the button appropriately in the event of any accident that may occur.<br/>
->
-> ```bash
-> ros2 launch tm_moveit_cpp_demo tm5-900_run_moveit_cpp.launch.py robot_ip:=<robot_ip_address>
-> ```
->
-> The parameter `<robot_ip_address>` means the IP address of the TM Robot.<br/>
-> :bookmark_tabs: Note2: If your real Robot is a TM12, in the above example, you should type "tm12_run_moveit_cpp.launch.py" to instead of "tm5-900_run_moveit_cpp.launch.py".<br/>
-> :bookmark_tabs: Note3: If your real Robot is the eyeless model as a TM12x, in the above example, you should type "tm12x_run_moveit_cpp.launch.py" to instead of "tm5-900_run_moveit_cpp.launch.py".<br/>
+> Note: When you are finished, press CTRL + C in all terminal windows to shut everything down.<br/>
 
 
 ## __4. Vision__
