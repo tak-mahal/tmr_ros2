@@ -8,7 +8,7 @@
   <maintainer email="leo.wu@tm-robot.com">leo wu</maintainer>
   <maintainer email="yh.wang@tm-robot.com">Yh Wang</maintainer>
 
-  <license>BSD</license>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <build_depend>libopencv-dev</build_depend>

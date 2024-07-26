@@ -4,8 +4,10 @@
   <name>tm_get_status</name>
   <version>1.0.0</version>
   <description>techman robot get status python scripts</description>
+
   <maintainer email="leo.wu@tm-robot.com">leo wu</maintainer>
-  <license>BSD</license>
+
+  <license>BSD-3-Clause</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
