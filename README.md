@@ -157,7 +157,7 @@ The user can manually click the `Data Table Setting` <sup>2</sup> item and check
 >       - [x] END_DI0~DI2
 >       - [x] END_AI0
 >
->    <sup>2</sup> <u>Turn off</u> Ethernet Slave. Let "STATUS:   __Disable__" be displayed on the Ethernet Slave setting page, then click `Data Table Setting` to enter the next page for related settings.  
+>    <sup>2</sup> <u>Turn off</u> Ethernet Slave. Let "STATUS:   __Disable__" displayed on the Ethernet Slave setting page, then click `Data Table Setting` to enter the next page for related settings.  
 >    <sup>3</sup> The checked items listed above must <u>all</u> be selected for TM ROS setting.
 >
 >    When you need to check more about the maximum, minimum, and average calculation properties of joint torque, the _three checked items_ <sup>4</sup> listed below can be checked individually or all of them, please leave them unchecked when not in use.
@@ -205,7 +205,7 @@ The user can manually click the `Data Table Setting` <sup>2</sup> item and check
 > ```
 > :bulb: Do you prepare the __TM Robot__ ready ? Make sure that TM Robot's operating software (__TMflow__) network settings are ready and the __Listen node__ is running. 
 > 
-> Then, run the driver to maintain the connection with TM Robot by typing 
+> Then, run the driver to test whether the complete communication interface is properly working with TM Robot by typing 
 >
 >```bash
 > ros2 run tm_driver tm_driver robot_ip:=<robot_ip_address>
@@ -213,6 +213,7 @@ The user can manually click the `Data Table Setting` <sup>2</sup> item and check
 > Example :``ros2 run tm_driver tm_driver robot_ip:=192.168.10.2``, if the <robot_ip_address> is 192.168.10.2
 >
 > Now, the user can use a new terminal to run each ROS node or command, but don't forget to source the correct setup shell files as starting a new terminal.
+> Note: When you finish executing your developed scripts or motion commands through the TM ROS driver connection, press CTRL + C in all terminal windows to shut everything down.
 
 
 ## __4. Vision__
@@ -310,7 +311,8 @@ The user can manually click the `Data Table Setting` <sup>2</sup> item and check
 > ros2 run custom_package sub_img
 > ```
 >
-> Then, the viewer will display image data from _TMflow_.
+> Then, the viewer will display image data from _TMflow_.<br/>
+> **Note**: When you have finished, press CTRL + C in all terminal windows to shut everything down.<br/>
 
 
 ## __5. Program script demonstration__
@@ -328,7 +330,7 @@ The user can use a service named "send_script" to send the script.<br/>
 >
 > * demo_ask_item:<br/>
 In this demo code, the user can use this service to send TMSVR <sup>2</sup> cmd.<br/> 
-> <sup>2</sup> For more detailed information, please refer to _defined protocol_: Expression Editor and Listen Node.pdf (Chapter 9.6 TMSVR)<br/>
+> <sup>2</sup> For more detailed information, please refer to _defined protocol_: TM Expression Editor and Listen Node.pdf (Chapter 9.6 TMSVR)<br/>
 >
 > * demo_ask_sta:<br/>
 In this demo code, the user can use this service to send TMSTA <sup>3</sup> cmd.<br/>
@@ -393,7 +395,7 @@ The <robot_ip_address> is the IP address of the TM Robot, the user can get it th
 ``source ./install/setup.bash``<br/>
 ``ros2 run demo demo_set_io``<br/>
 > :warning:[CAUTION] Some demos will let the TM Robot move, please be careful.<br/>
-**Note**: When you are finished, press CTRL + C in all terminal windows to shut everything down.<br/>
+**Note**: When you have finished, press CTRL + C in all terminal windows to shut everything down.<br/>
 ><br/>
 
 
@@ -417,7 +419,7 @@ This chapter describes a simplified GUI for displaying tm_driver connection stat
 > :bulb: If the"``Ethernet``" connection is interrupted, the display of most controlled label items in the GUI will be displayed as "NaN" and the robot feedback state will remain the last state and become invalid.<br/>
 
 
-### &sect; Usage with GUI debugging
+### &sect; Usage with GUI debugging on the external Linux PC
 > Note: If the user has even successfully built a specific code(tmr_ros2), the user only needs to change to the TM driver workspace path  ``cd ~/tmdriver_ws``, and then directly refer to steps 5~6 below.<br/>
 > 1. Type to create a root workspace directory by starting a terminal: For example,  ``tmdriver_ws`` or ``catkin_ws``, then type to change the current directory into the workspace directory path.<br/>
 ``mkdir ~/tmdriver_ws``<br/>
@@ -437,7 +439,7 @@ The <robot_ip_address> is the IP address of the TM Robot, the user can get it th
 > 6. In another new terminal: Source setup.bash in the workspace path and start GUI debug by typing<br/>
 ``source ./install/setup.bash``<br/>
 ``ros2 run ui_for_debug_and_demo robot_ui``<br/>
-**Note**: When you are finished, press CTRL + C in all terminal windows to shut everything down.<br/>
+**Note**: When you have finished, press CTRL + C in all terminal windows to shut everything down.<br/>
 
 
 ## __7. TM Robot corrected kinematics value loading and robot description file generation__
@@ -475,7 +477,7 @@ The user can use the tm_mod_urdf package to extract specific kinematic values fr
 > :bulb: Do you run the driver to maintain the connection with TM Robot, make sure that TM Robot's operating software (TMflow) network settings are ready and the Listen node is running.<br/>
 > <br/>
 > * #### __Take generating a new Xacro file as an example__
-> The following steps describe how to import specific kinematic values using a real TM5-900 Robot following the procedure below and select the corresponding type tm5-900 as an example of <urdf_from>.<br/>
+> The following steps describe how to import specific kinematic values using a real TM5-900 Robot following the procedure below, and select the corresponding type tm5-900 as an example of <urdf_from>.<br/>
 >
 > 1. In a terminal: Source setup.bash in the workspace path and run the driver to connect to TM Robot by typing<br/>
 >
@@ -487,7 +489,7 @@ The user can use the tm_mod_urdf package to extract specific kinematic values fr
 > ```
 > The parameter `<robot_ip_address>` means the IP address of your TM Robot, the user can get it through TM Flow.<br/>
 > 
-> 2. In another new terminal: source setup.bash in the workspace path, change the current directory to the directory path of the Python script to get the specific kinematic parameters of your TM Robot, and then enter the specified command format to generate a new name by the <urdf_gen> argument, for example, named user_defined.<br/>
+> 2. In another new terminal: Source setup.bash in the workspace path, change the current directory to the directory path of the Python script to get the specific kinematic parameters of your TM Robot, and then enter the specified command format to generate a new name by the <urdf_gen> argument, for example, named user_defined.<br/>
 > 
 > ```bash
 > source /opt/ros/humble/setup.bash
