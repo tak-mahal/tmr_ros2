@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<robot name="schmalz_ecbpi_model" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" />
+  <xacro:ecbpi_hand hand_link_name="ecbpi" robot_name="schmalz"/>
+</robot>
