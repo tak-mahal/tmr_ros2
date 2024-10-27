@@ -3,5 +3,5 @@ from moveit_configs_utils.launches import generate_spawn_controllers_launch
 
 
 def generate_launch_description():
-    moveit_config = MoveItConfigsBuilder("tm12", package_name="tm12_moveit_config").to_moveit_configs()
+    moveit_config = MoveItConfigsBuilder("tm12_ecbpi", package_name="tm12_ecbpi_moveit_config").to_moveit_configs()
     return generate_spawn_controllers_launch(moveit_config)

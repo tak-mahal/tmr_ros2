@@ -1,12 +1,11 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="tm12_ecpbi">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="tm12_ecbpi">
 
   <xacro:arg name="ns" default="" />
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="color" default="none" />
   <xacro:arg name="trans_hw_iface" default="hardware_interface/PositionJointInterface" />
-  <xacro:arg name="hand_link_name" default="ecpbi_base" />
-
+ 
   <xacro:include filename="$(find tm_description)/xacro/macro.gazebo.xacro" />
   <xacro:include filename="$(find tm_description)/xacro/macro.transmission.xacro" />
   <xacro:include filename="$(find tm_description)/xacro/macro.materials.xacro" />
@@ -17,7 +16,8 @@
   <!-- you must modify 'macro.tm12-nominal.urdf.xacro' to 'user_defined.urdf.xacro'  -->
   <xacro:include filename="$(find tm_description)/xacro/macro.tm12-nominal.urdf.xacro" />
 
-  <xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" />
+  <xacro:include filename="/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_description/xacro/schmalz_ecbpi_model_macro.xacro" />
+  <xacro:ecbpi_hand parent_link="flange" robot_name="tm12_ecbpi"/>
 
   <!--  -->
   <xacro:tmr_gazebo ns="$(arg ns)" prefix="$(arg prefix)" />

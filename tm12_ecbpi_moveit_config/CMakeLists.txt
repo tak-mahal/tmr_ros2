@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(tm12_moveit_config)
+project(tm12_ecbpi_moveit_config)
 
 find_package(ament_cmake REQUIRED)
 

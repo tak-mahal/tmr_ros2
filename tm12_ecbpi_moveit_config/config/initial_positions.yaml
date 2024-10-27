@@ -1,4 +1,4 @@
-# Default initial positions for tm12's ros2_control fake system
+# Default initial positions for tm12_ecbpi's ros2_control fake system
 
 initial_positions:
   joint_1: 0
