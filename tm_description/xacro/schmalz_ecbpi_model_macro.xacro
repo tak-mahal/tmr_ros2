@@ -7,7 +7,7 @@
   <xacro:property name="joint_upper_limit" value="0.055" />
 
   <xacro:macro name="ecbpi_hand" params="hand_link_name robot_name">
-    <link name="${hand_link_name}">
+    <link name="ecpbi_base">
       <inertial>
         <mass value="0.745" />
         <origin xyz="0 0.0 0.055" rpy="0 0 0" />
@@ -50,7 +50,7 @@
     </link>
 
     <joint name="$hand__end_effector_joint" type="fixed">
-      <parent link="${hand_link_name}"/>
+      <parent link="ecpbi_base"/>
       <child link="ecbpi_end_effector"/>
       <origin xyz="0 0 ${0.13}" rpy="0 0 0"/>      
     </joint>

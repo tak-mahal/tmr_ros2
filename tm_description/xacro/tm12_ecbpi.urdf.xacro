@@ -19,12 +19,6 @@
 
   <xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" />
 
-  <joint name="falange" type="fixed">
-    <parent link="flange" />
-    <child link="ecpbi_base" />
-    <origin xyz="0 0 0.1" rpy="0 0 0" />
-  </joint>
-
   <!--  -->
   <xacro:tmr_gazebo ns="$(arg ns)" prefix="$(arg prefix)" />
   <xacro:tmr_transmission prefix="$(arg prefix)" hw_iface="$(arg trans_hw_iface)" />
