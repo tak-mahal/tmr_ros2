@@ -4,7 +4,6 @@
 <!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED                                 | -->
 <!-- =================================================================================== -->
 <robot name="tm12">
-  <!-- xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" /-->
   <gazebo reference="link_1">
     <selfCollide>true</selfCollide>
   </gazebo>

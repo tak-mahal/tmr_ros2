@@ -16,7 +16,7 @@
   <!-- you must modify 'macro.tm12-nominal.urdf.xacro' to 'user_defined.urdf.xacro'  -->
   <xacro:include filename="$(find tm_description)/xacro/macro.tm12-nominal.urdf.xacro" />
 
-  <!-- xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" /-->
+  <xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" />
 
   <!--  -->
   <xacro:tmr_gazebo ns="$(arg ns)" prefix="$(arg prefix)" />
