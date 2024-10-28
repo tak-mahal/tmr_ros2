@@ -16,7 +16,7 @@
   <!-- you must modify 'macro.tm12-nominal.urdf.xacro' to 'user_defined.urdf.xacro'  -->
   <xacro:include filename="$(find tm_description)/xacro/macro.tm12-nominal.urdf.xacro" />
 
-  <xacro:include filename="/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_description/xacro/schmalz_ecbpi_model_macro.xacro" />
+  <xacro:include filename="$(find tm_description)/xacro/schmalz_ecbpi_model_macro.xacro" />
   <xacro:ecbpi_hand parent_link="flange" robot_name="tm12_ecbpi"/>
 
   <!--  -->
