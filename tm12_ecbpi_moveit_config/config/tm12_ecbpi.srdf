@@ -19,9 +19,9 @@
     <group_state name="home" group="tm12_arm">
         <joint name="joint_1" value="0"/>
         <joint name="joint_2" value="0"/>
-        <joint name="joint_3" value="1.5526"/>
+        <joint name="joint_3" value="1.6"/>
         <joint name="joint_4" value="0"/>
-        <joint name="joint_5" value="1.5794"/>
+        <joint name="joint_5" value="1.6"/>
         <joint name="joint_6" value="0"/>
     </group_state>
     <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
@@ -42,6 +42,5 @@
     <disable_collisions link1="link_2" link2="link_3" reason="Adjacent"/>
     <disable_collisions link1="link_3" link2="link_4" reason="Adjacent"/>
     <disable_collisions link1="link_4" link2="link_5" reason="Adjacent"/>
-    <disable_collisions link1="link_4" link2="link_6" reason="User"/>
     <disable_collisions link1="link_5" link2="link_6" reason="Adjacent"/>
 </robot>
