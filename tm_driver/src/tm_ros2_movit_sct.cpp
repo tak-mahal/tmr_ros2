@@ -228,6 +228,7 @@ void TmRos2SctMoveit::set_pvt_traj(
     print_warn("TM_ROS: Traj.: skip %d points", (int)skip_count);	
     //RCLCPP_WARN_STREAM(rclcpp::get_logger("rclcpp"),"TM_ROS: Traj.: skip " << (int)skip_count << " points");
   }
+  //
   // last point
   if (traj_points.size() > 1) {
     i =  traj_points.size() - 1;
@@ -244,7 +245,8 @@ void TmRos2SctMoveit::set_pvt_traj(
       print_warn("TM_ROS: Traj.: skip 1 more last point");
     }
   }
-  pvts.total_time = sec(traj_points.back().time_from_start);
+  //
+  pvts.total_time = sec(traj_points.back().time_from_start)*100.0;
 }
 std::shared_ptr<TmPvtTraj> TmRos2SctMoveit::get_pvt_traj(
     const std::vector<trajectory_msgs::msg::JointTrajectoryPoint> &traj_points, double Tmin)

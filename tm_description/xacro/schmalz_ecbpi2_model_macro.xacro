@@ -50,7 +50,14 @@
       <child link="ecbpi_base"/>
       <origin xyz="0 0 0" rpy="0 0 ${0.5*pi}"/>      
     </joint>
-
+    <!--link name="ecbpi_tcp">
+      <origin xyz="0 -0.044 0.18" rpy="0 0 0"/>
+    </link>
+    <joint name="ecbpi_bast_to_tcp" type="fixed">
+      <parent link="ecbpi_base"/>
+      <child link="ecbpi_tcp"/>
+      <origin xyz = "0 0 0" rpy="0 0 0"/> 
+    </joint-->
     <xacro:ecbpi_hand_gazebo robot_name="${robot_name}" />    
   </xacro:macro>
 
