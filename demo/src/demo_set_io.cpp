@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     node->create_client<tm_msgs::srv::SetIO>("set_io");
   
   auto request = std::make_shared<tm_msgs::srv::SetIO::Request>();
-  request->module = tm_msgs::srv::SetIO::Request::MODULE_CONTROLBOX;
+  request->module = tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR;
   request->type = tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT;
   request->pin = 0;
   request->state = tm_msgs::srv::SetIO::Request::STATE_ON;
