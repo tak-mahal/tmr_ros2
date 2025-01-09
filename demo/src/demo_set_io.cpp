@@ -19,7 +19,7 @@ int main(int argc, char **argv)
   request->module = tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR;
   request->type = tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT;
   request->pin = 0;
-  request->state = tm_msgs::srv::SetIO::Request::STATE_ON;
+  request->state = tm_msgs::srv::SetIO::Request::STATE_OFF;
 
   while (!client->wait_for_service(1s)) {
     if (!rclcpp::ok()) {

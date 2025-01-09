@@ -147,5 +147,5 @@ tmr_arm:
     - LazyPRMstarkConfigDefault
     - SPARSkConfigDefault
     - SPARStwokConfigDefault
-  # projection_evaluator: joints(joint_1,joint_2)
+  projection_evaluator: joints(joint_1,joint_2)
   longest_valid_segment_fraction: 0.01

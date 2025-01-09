@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     node->create_client<tm_msgs::srv::AskItem>("ask_item");
   auto request = std::make_shared<tm_msgs::srv::AskItem::Request>();
   request->id = "demo";
-  request->item = "HandCamera_Value";
+  request->item = "End_DO4";
   request->wait_time = 1;
  
   while (!client->wait_for_service(1s)) {
@@ -32,8 +32,10 @@ int main(int argc, char **argv)
   if (rclcpp::spin_until_future_complete(node, result) ==
     rclcpp::FutureReturnCode::SUCCESS)
   {
-    if(result.get()->ok){
+    auto getResult = result.get();
+    if(getResult->ok){
       RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"),"OK");
+      //RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"),getResult->item);
     } else{
       RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"),"not OK");
     }
