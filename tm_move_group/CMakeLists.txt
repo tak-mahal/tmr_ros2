@@ -33,6 +33,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 find_package(rclcpp REQUIRED)
 find_package(tm_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(moveit_servo REQUIRED)
 
 if (moveit2_lib_auto_judge) 
 if ( NOT moveit_ros_planning_interface_FOUND)
@@ -53,6 +54,7 @@ if (moveit_ros_planning_interface_FOUND)
     Boost
     rclcpp
     tm_msgs
+    moveit_servo
     "yaml-cpp"
   )
 

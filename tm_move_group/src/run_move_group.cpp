@@ -241,7 +241,7 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = true;
+  const bool simulation_mode = false;
   const bool use_file = false;
 
   rclcpp::init(argc, argv);
@@ -411,7 +411,7 @@ int main(int argc, char** argv)
 
       // アプローチ用のターゲットBを計算
       geometry_msgs::msg::PoseStamped pick_approach_pose_msg = pick_pose_msg;
-      pick_approach_pose_msg.pose.position.z += 0.04; // 200mm上方
+      pick_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
 
       geometry_msgs::msg::PoseStamped place_approach_pose_msg = place_pose_msg;
       place_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
@@ -422,9 +422,6 @@ int main(int argc, char** argv)
       //place_pose_msg.pose.position.x += 0.044;
 
       auto plan_and_execute_try_all = [&](const geometry_msgs::msg::PoseStamped& pose, bool cartesian, int indices1, int indices2, std::string plan_file, std::string pose_file) {
-        move_group_interface.setPoseTarget(pose, "flange");
-        moveit::planning_interface::MoveGroupInterface::Plan plan;
-        bool success;
         // プランナーのリストを定義
         std::vector<std::string> planners = {
           "RRTConnectkConfigDefault",
@@ -451,6 +448,10 @@ int main(int argc, char** argv)
           "SPARSkConfigDefault",
           "SPARStwokConfigDefault"
         };
+        
+        move_group_interface.setPoseTarget(pose, "flange");
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        bool success;
 
         if (cartesian) {
           moveit_msgs::msg::RobotTrajectory trajectory;
@@ -479,6 +480,7 @@ int main(int argc, char** argv)
 
         }
 
+
         if (!success) {
             RCLCPP_ERROR(node->get_logger(), "Planning failed with all planners. id: %d - %d", indices1, indices2);
             return false;
@@ -487,10 +489,123 @@ int main(int argc, char** argv)
             savePlanToYAML(plan, plan_file);
             saveTargetPoseToYAML(pose.pose, pose_file);
             RCLCPP_INFO(node->get_logger(), "plan and pose saved for id: %d - %d", indices1, indices2);
-            return exec_success;
+            if (simulation_mode){
+
+                return exec_success;
+            } else {
+                return true;
+            }
         }
 
       };
+
+      auto plan_and_execute_try_all_constraint = [&](const geometry_msgs::msg::PoseStamped& pose, bool cartesian, int indices1, int indices2, std::string plan_file, std::string pose_file) {
+        // プランナーのリストを定義
+        std::vector<std::string> planners = {
+          "RRTConnectkConfigDefault",
+          "SBLkConfigDefault",
+          "ESTkConfigDefault",
+          "LBKPIECEkConfigDefault",
+          "BKPIECEkConfigDefault",
+          "KPIECEkConfigDefault",
+          "RRTstarkConfigDefault",
+          "RRTkConfigDefault",
+          "TRRTkConfigDefault",
+          "PRMkConfigDefault",
+          "PRMstarkConfigDefault",
+          "FMTkConfigDefault",
+          "BFMTkConfigDefault",
+          "PDSTkConfigDefault",
+          "STRIDEkConfigDefault",
+          "BiTRRTkConfigDefault",
+          "LBTRRTkConfigDefault",
+          "BiESTkConfigDefault",
+          "ProjESTkConfigDefault",
+          "LazyPRMkConfigDefault",
+          "LazyPRMstarkConfigDefault",
+          "SPARSkConfigDefault",
+          "SPARStwokConfigDefault"
+        };
+        
+        if(cartesian){
+            
+            moveit_msgs::msg::OrientationConstraint orientation_constraint;
+            orientation_constraint.header.frame_id = move_group_interface.getPoseReferenceFrame();
+            orientation_constraint.link_name = "flange";
+            orientation_constraint.orientation = pose.pose.orientation;
+            //orientation_constraint.absolute_x_axis_tolerance = 0.4;
+            //orientation_constraint.absolute_y_axis_tolerance = 0.4;
+            //orientation_constraint.absolute_z_axis_tolerance = 0.4;
+            orientation_constraint.weight = 1.0;
+
+            moveit_msgs::msg::PositionConstraint line_constraint;
+            line_constraint.header.frame_id = move_group_interface.getPoseReferenceFrame();
+            line_constraint.link_name = "flange";
+            shape_msgs::msg::SolidPrimitive line;
+            line.type = shape_msgs::msg::SolidPrimitive::BOX;
+            line.dimensions = { 0.0005, 0.0005, 1.0 };
+            line_constraint.constraint_region.primitives.emplace_back(line);
+
+            geometry_msgs::msg::Pose line_pose;
+            line_pose.position.x = pose.pose.position.x;
+            line_pose.position.y = pose.pose.position.y;
+            line_pose.position.z = pose.pose.position.z - 0.02;
+            line_pose.orientation = pose.pose.orientation;
+            //line_pose.orientation.y = 0.0;
+            //line_pose.orientation.z = 0.0;
+            //line_pose.orientation.w = cos(M_PI_4 / 2);
+            line_constraint.constraint_region.primitive_poses.emplace_back(line_pose);
+            line_constraint.weight = 1.0;
+
+            moveit_msgs::msg::Constraints mixed_constraints;
+            //mixed_constraints.orientation_constraints.emplace_back(orientation_constraint);
+            mixed_constraints.position_constraints.emplace_back(line_constraint);
+            move_group_interface.setPathConstraints(mixed_constraints);
+            move_group_interface.setPlanningTime(10.0);
+            //moveit_msgs::msg::Constraints orientation_constraints;
+            //orientation_constraints.orientation_constraints.emplace_back(orientation_constraint);
+            
+
+        }
+
+        move_group_interface.setPoseTarget(pose, "flange");
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        bool success;
+
+        for (const auto& planner : planners) {
+          move_group_interface.setPlannerId(planner);
+          RCLCPP_INFO(node->get_logger(), "Trying planner: %s", planner.c_str());
+
+          success = (move_group_interface.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+          if (success) {
+              RCLCPP_INFO(node->get_logger(), "Planning succeeded with planner: %s", planner.c_str());
+              break; // 成功したらループを抜ける
+          } else {
+              RCLCPP_WARN(node->get_logger(), "Planning failed with planner: %s id: %d - %d", planner.c_str(), indices1, indices2);
+          }
+        }
+
+        move_group_interface.clearPathConstraints();
+
+        if (!success) {
+            RCLCPP_ERROR(node->get_logger(), "Planning failed with all planners. id: %d - %d", indices1, indices2);
+            return false;
+        } else {
+            bool exec_success = (move_group_interface.execute(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+            savePlanToYAML(plan, plan_file);
+            saveTargetPoseToYAML(pose.pose, pose_file);
+            RCLCPP_INFO(node->get_logger(), "plan and pose saved for id: %d - %d", indices1, indices2);
+            if (simulation_mode){
+
+                return exec_success;
+            } else {
+                return true;
+            }
+        }
+
+      };
+
 
       RCLCPP_INFO(node->get_logger(), "before planning");
     
@@ -571,20 +686,73 @@ int main(int argc, char** argv)
                     new_pick_pose.pose.position.z += rotated_translation.z();
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
-                    ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path); 
-                    if (ct_success) {
-                        RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
-                        pick_pose_msg = new_pick_pose;
-                    } else {
-                        RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
-                        rclcpp::shutdown();  // ROS2ノードをシャットダウン
-                        std::exit(EXIT_FAILURE);  // プログラムを終了
+                    ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                    if (simulation_mode || !simulation_mode){
 
+                      if (ct_success) {
+                          RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                          pick_pose_msg = new_pick_pose;
+                      } else {
+
+                          ct_success = plan_and_execute_try_all_constraint(new_pick_pose, true, index, 2, plan_path, pose_path);
+                          if (ct_success) {
+                              RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                              pick_pose_msg = new_pick_pose;
+                          } else {
+                              RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                              rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                              std::exit(EXIT_FAILURE);  // プログラムを終了
+                          }
+                      }
                     }
                 } else {
-                    RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
-                    rclcpp::shutdown();  // ROS2ノードをシャットダウン
-                    std::exit(EXIT_FAILURE);  // プログラムを終了
+                      ct_success = plan_and_execute_try_all_constraint(new_pick_app_pose, true, index, 2, plan_path, pose_path);
+                      if (ct_success) {
+                        RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 1);
+                        pick_approach_pose_msg = new_pick_app_pose;
+                        geometry_msgs::msg::PoseStamped new_pick_pose = pick_pose_msg;
+
+                        // オリエンテーションをZ軸に180度回転
+                        tf2::Quaternion q;
+                        tf2::fromMsg(new_pick_pose.pose.orientation, q);
+                        tf2::Quaternion q_rot;
+                        q_rot.setRPY(0, 0, M_PI); // Z軸に180度回転
+                        q = q * q_rot;
+                        new_pick_pose.pose.orientation = tf2::toMsg(q);
+
+                        // 元の座標系のY方向に0.088移動
+                        transform.setRotation(q);
+                        rotated_translation = transform * translation_vector;
+                        new_pick_pose.pose.position.x += rotated_translation.x();
+                        new_pick_pose.pose.position.y += rotated_translation.y();
+                        new_pick_pose.pose.position.z += rotated_translation.z();
+
+                        moveit_msgs::msg::RobotTrajectory new_trajectory;
+                        ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                        if (simulation_mode || !simulation_mode){
+
+                          if (ct_success) {
+                              RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                              pick_pose_msg = new_pick_pose;
+                          } else {
+
+                              ct_success = plan_and_execute_try_all_constraint(new_pick_pose, true, index, 2, plan_path, pose_path);
+                              if (ct_success) {
+                                  RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                                  pick_pose_msg = new_pick_pose;
+                              } else {
+                                  RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                                  rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                                  std::exit(EXIT_FAILURE);  // プログラムを終了
+                              }
+                          }
+                        }
+
+                      } else {
+                          RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                          rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                          std::exit(EXIT_FAILURE);  // プログラムを終了
+                      }
                 }
 
             }
@@ -620,7 +788,10 @@ int main(int argc, char** argv)
                 }
                 // Place時の衝突を避けるために、元の位置に戻す
                 //pick_pose_msg.pose.position.z += 0.001 * attempt_count;
-                plan_and_execute_try_all(pick_pose_msg, true, index, 2, plan_path, pose_path);
+                bool ct_success = plan_and_execute_try_all(pick_pose_msg, true, index, 2, plan_path, pose_path);
+                //if (!ct_success){
+                //    plan_and_execute_try_all(pick_pose_msg, false, index, 2, plan_path, pose_path);
+                //}
                 // 
 
            }
@@ -641,7 +812,10 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
             //plan_and_execute(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
-            plan_and_execute_try_all(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
+            bool ct_success = plan_and_execute_try_all(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
+            if (!ct_success){
+                plan_and_execute_try_all(pick_approach_pose_msg, false, index, 3, plan_path, pose_path);
+            }
         }
 
         // アプローチ用のターゲットBに移動（通常のプランニング）
@@ -714,19 +888,71 @@ int main(int argc, char** argv)
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
                     ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
-                    if (ct2_success) {
-                        RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 5);
-                        place_pose_msg = new_place_pose;
-                    } else {
-                        RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
-                        rclcpp::shutdown();  // ROS2ノードをシャットダウン
-                        std::exit(EXIT_FAILURE);  // プログラムを終了
+                    if (simulation_mode || !simulation_mode){
+                      if (ct2_success) {
+                          RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 5);
+                          place_pose_msg = new_place_pose;
+                      } else {
+                          ct2_success = plan_and_execute_try_all_constraint(new_place_pose, true, index, 2, plan_path, pose_path);
+                          if (ct2_success) {
+                              RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                              place_pose_msg = new_place_pose;
+                          } else {
+                              RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                              rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                              std::exit(EXIT_FAILURE);  // プログラムを終了
+                          }
 
+
+                      }
                     }
                 } else {
-                    RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
-                    rclcpp::shutdown();  // ROS2ノードをシャットダウン
-                    std::exit(EXIT_FAILURE);  // プログラムを終了
+                      ct2_success = plan_and_execute_try_all_constraint(new_place_app_pose, true, index, 2, plan_path, pose_path);
+                      if (ct2_success) {
+                        RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 4);
+                        place_approach_pose_msg = new_place_app_pose;
+                        geometry_msgs::msg::PoseStamped new_place_pose = place_pose_msg;
+
+                        // オリエンテーションをZ軸に180度回転
+                        tf2::Quaternion q;
+                        tf2::fromMsg(new_place_pose.pose.orientation, q);
+                        tf2::Quaternion q_rot;
+                        q_rot.setRPY(0, 0, M_PI); // Z軸に180度回転
+                        q = q * q_rot;
+                        new_place_pose.pose.orientation = tf2::toMsg(q);
+
+                        // 元の座標系のY方向に0.088移動
+                        transform.setRotation(q);
+                        rotated_translation = transform * translation_vector;
+                        new_place_pose.pose.position.x += rotated_translation.x();
+                        new_place_pose.pose.position.y += rotated_translation.y();
+                        new_place_pose.pose.position.z += rotated_translation.z();
+
+                        moveit_msgs::msg::RobotTrajectory new_trajectory;
+                        ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                        if (simulation_mode || simulation_mode){
+                          if (ct2_success) {
+                              RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 5);
+                              place_pose_msg = new_place_pose;
+                          } else {
+                              ct2_success = plan_and_execute_try_all_constraint(new_place_pose, true, index, 2, plan_path, pose_path);
+                              if (ct2_success) {
+                                  RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                                  place_pose_msg = new_place_pose;
+                              } else {
+                                  RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                                  rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                                  std::exit(EXIT_FAILURE);  // プログラムを終了
+                              }
+
+                          }
+                        }
+
+                      } else {
+                          RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                          rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                          std::exit(EXIT_FAILURE);  // プログラムを終了
+                          }
 
                 }
 
@@ -754,7 +980,10 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
             //plan_and_execute(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
-            plan_and_execute_try_all(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
+            bool ct_success = plan_and_execute_try_all(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
+            //if (!ct_success) {
+            //    plan_and_execute_try_all(place_approach_pose_msg, false, index, 6, plan_path, pose_path);
+            //}
         }
       
         // add pump rubber cylinder
