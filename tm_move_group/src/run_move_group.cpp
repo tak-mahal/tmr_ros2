@@ -241,7 +241,7 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = false;
+  const bool simulation_mode = true;
   const bool use_file = false;
 
   rclcpp::init(argc, argv);
@@ -491,7 +491,7 @@ int main(int argc, char** argv)
             RCLCPP_INFO(node->get_logger(), "plan and pose saved for id: %d - %d", indices1, indices2);
             if (simulation_mode){
 
-                return exec_success;
+                return true;
             } else {
                 return true;
             }
@@ -643,7 +643,14 @@ int main(int argc, char** argv)
         } else {
             //plan_and_execute(pick_pose_msg, true, index, 2, plan_path, pose_path);
             //bool ct_success = false;
-            bool ct_success = plan_and_execute_try_all(pick_pose_msg, true, index, 2, plan_path, pose_path);
+            int ct_count = 0;
+            bool ct_success = false;
+            while (!ct_success || ct_count < 10){
+
+                ct_success = plan_and_execute_try_all(pick_pose_msg, true, index, 2, plan_path, pose_path);
+                RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                ct_count++;
+            }
             if (!ct_success){
 
                 geometry_msgs::msg::PoseStamped new_pick_app_pose = pick_approach_pose_msg;
@@ -664,7 +671,13 @@ int main(int argc, char** argv)
                 new_pick_app_pose.pose.position.y += rotated_translation.y();
                 new_pick_app_pose.pose.position.z += rotated_translation.z();
 
-                ct_success = plan_and_execute_try_all(new_pick_app_pose, false, index, 1, plan_path, pose_path);
+                ct_count = 0;
+                while(!ct_success || ct_count < 10){
+
+                     ct_success = plan_and_execute_try_all(new_pick_app_pose, false, index, 1, plan_path, pose_path);
+                     RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                     ct_count++;
+                }
                 if (ct_success) {
                     RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 1);
                     pick_approach_pose_msg = new_pick_app_pose;
@@ -686,7 +699,13 @@ int main(int argc, char** argv)
                     new_pick_pose.pose.position.z += rotated_translation.z();
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
-                    ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                    ct_count = 0;
+                    while (!ct_success || ct_count < 10) {
+
+                        ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                        RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                        ct_count++;
+                    }
                     if (simulation_mode || !simulation_mode){
 
                       if (ct_success) {
@@ -706,8 +725,8 @@ int main(int argc, char** argv)
                       }
                     }
                 } else {
-                      ct_success = plan_and_execute_try_all_constraint(new_pick_app_pose, true, index, 2, plan_path, pose_path);
-                      if (ct_success) {
+                    ct_success = plan_and_execute_try_all_constraint(new_pick_app_pose, true, index, 2, plan_path, pose_path);
+                    if (ct_success) {
                         RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 1);
                         pick_approach_pose_msg = new_pick_app_pose;
                         geometry_msgs::msg::PoseStamped new_pick_pose = pick_pose_msg;
@@ -728,12 +747,18 @@ int main(int argc, char** argv)
                         new_pick_pose.pose.position.z += rotated_translation.z();
 
                         moveit_msgs::msg::RobotTrajectory new_trajectory;
-                        ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                        ct_count = 0;
+                        while(!ct_success || ct_count < 10){
+
+                            ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                            RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                            ct_count++;
+                        }
                         if (simulation_mode || !simulation_mode){
 
                           if (ct_success) {
-                              RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
-                              pick_pose_msg = new_pick_pose;
+                             RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 2);
+                             pick_pose_msg = new_pick_pose;
                           } else {
 
                               ct_success = plan_and_execute_try_all_constraint(new_pick_pose, true, index, 2, plan_path, pose_path);
@@ -745,22 +770,22 @@ int main(int argc, char** argv)
                                   rclcpp::shutdown();  // ROS2ノードをシャットダウン
                                   std::exit(EXIT_FAILURE);  // プログラムを終了
                               }
+                            }
                           }
+
+                        } else {
+                            RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
+                              rclcpp::shutdown();  // ROS2ノードをシャットダウン
+                              std::exit(EXIT_FAILURE);  // プログラムを終了
                         }
+                    }
+               }
 
-                      } else {
-                          RCLCPP_ERROR(node->get_logger(), "Planning failed after 180 degrees rotation.");
-                          rclcpp::shutdown();  // ROS2ノードをシャットダウン
-                          std::exit(EXIT_FAILURE);  // プログラムを終了
-                      }
-                }
-
-            }
         }
         // つかむ
-        set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
         // 1秒待機
         if (!simulation_mode){
+            set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
             rclcpp::sleep_for(1s);
 
             int tsumiki_on = ask_item(node, "demo", "End_DI0", 1);
@@ -812,9 +837,16 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
             //plan_and_execute(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
-            bool ct_success = plan_and_execute_try_all(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
+            bool ct_success = false;
+            int ct_count = 0;
+            while (!ct_success || ct_count < 10){
+            
+                ct_success = plan_and_execute_try_all(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
+                RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                ct_count++;
+            }
             if (!ct_success){
-                plan_and_execute_try_all(pick_approach_pose_msg, false, index, 3, plan_path, pose_path);
+                plan_and_execute_try_all_constraint(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
             }
         }
 
@@ -843,8 +875,14 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
             //plan_and_execute(place_pose_msg, true, index, 5, plan_path, pose_path);
+            bool ct2_success = false;
+            int ct2_count = 0;
+            while (!ct2_success || ct2_count < 10){
 
-            bool ct2_success = plan_and_execute_try_all(place_pose_msg, true, index, 5, plan_path, pose_path);
+                ct2_success = plan_and_execute_try_all(place_pose_msg, true, index, 5, plan_path, pose_path);
+                RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
+                ct2_count++;
+            }
             if (!ct2_success){
 
                 geometry_msgs::msg::PoseStamped new_place_app_pose = place_approach_pose_msg;
@@ -864,8 +902,13 @@ int main(int argc, char** argv)
                 new_place_app_pose.pose.position.x += rotated_translation.x();
                 new_place_app_pose.pose.position.y += rotated_translation.y();
                 new_place_app_pose.pose.position.z += rotated_translation.z();
+                ct2_count = 0;
+                while(!ct2_success || ct2_count < 10){
 
-                ct2_success = plan_and_execute_try_all(new_place_app_pose, false, index, 4, plan_path, pose_path);
+                    ct2_success = plan_and_execute_try_all(new_place_app_pose, false, index, 4, plan_path, pose_path);
+                    RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
+                    ct2_count++;
+                }
                 if (ct2_success) {
                     RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 4);
                     place_approach_pose_msg = new_place_app_pose;
@@ -887,7 +930,13 @@ int main(int argc, char** argv)
                     new_place_pose.pose.position.z += rotated_translation.z();
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
-                    ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                    ct2_count = 0;
+                    while(!ct2_success || ct2_count < 10){
+
+                        ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                        RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
+                        ct2_count++;
+                    }
                     if (simulation_mode || !simulation_mode){
                       if (ct2_success) {
                           RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 5);
@@ -929,7 +978,13 @@ int main(int argc, char** argv)
                         new_place_pose.pose.position.z += rotated_translation.z();
 
                         moveit_msgs::msg::RobotTrajectory new_trajectory;
-                        ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                        ct2_count = 0;
+                        while(!ct2_success || ct2_count < 10){
+
+                            ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                            RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
+                            ct2_count++;
+                        }
                         if (simulation_mode || simulation_mode){
                           if (ct2_success) {
                               RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 5);
@@ -961,9 +1016,9 @@ int main(int argc, char** argv)
         }
       
         // 離す
-        set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
 
         if (!simulation_mode) {
+           set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
            rclcpp::sleep_for(1s);
 
         }
@@ -980,12 +1035,19 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
             //plan_and_execute(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
-            bool ct_success = plan_and_execute_try_all(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
-            //if (!ct_success) {
-            //    plan_and_execute_try_all(place_approach_pose_msg, false, index, 6, plan_path, pose_path);
-            //}
+            bool ct_success = false;
+            int ct_count = 0;
+            while (!ct_success || ct_count < 10){
+
+                ct_success = plan_and_execute_try_all(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
+                RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                ct_count++;
+           }
+           if (!ct_success) {
+                plan_and_execute_try_all_constraint(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
+           }
         }
-      
+
         // add pump rubber cylinder
         moveit_msgs::msg::CollisionObject pr2;
         pr2.id = "pump_rubber";
