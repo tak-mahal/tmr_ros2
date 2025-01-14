@@ -211,6 +211,7 @@ int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::str
   }
 }
 
+
 void prompt(const std::string& message)
 {
   printf(MOVEIT_CONSOLE_COLOR_GREEN "\n%s" MOVEIT_CONSOLE_COLOR_RESET, message.c_str());
@@ -265,8 +266,8 @@ int main(int argc, char** argv)
   bpl.id = "base_plate";
   bpl.header.frame_id = "base";
   bpl.primitives.resize(1);
-  bpl.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-  bpl.primitives[0].dimensions = { 2.0, 2.0, 0.015 };
+  bpl.primitives[0].type = shape_msgs::msg::SolidPrimitive::CYLINDER;
+  bpl.primitives[0].dimensions = { 0.015, 1.15 };
 
   geometry_msgs::msg::Pose pose;
   pose.position.x = 0;
@@ -296,6 +297,40 @@ int main(int argc, char** argv)
   pr_pose.orientation = tf2::toMsg(pr_q);
   pr.pose = pr_pose;
   planning_scene_interface.applyCollisionObject(pr);
+
+  // add tenkei to planning scene
+  std::ifstream file_tenkei("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/tenkei.csv");
+  std::string line_tenkei;
+  int ti = 0;
+  while (std::getline(file_tenkei, line_tenkei)) {
+    std::stringstream ss_pose(line_tenkei);
+    std::string value_pose;
+    std::vector<double> pose_values;
+
+    while (std::getline(ss_pose, value_pose, ',')) {
+      pose_values.push_back(std::stod(value_pose));
+    }
+
+    moveit_msgs::msg::CollisionObject object;
+    object.id = "tenkei_" + std::to_string(ti) ;
+    object.header.frame_id = "base";
+    object.primitives.resize(1);
+    object.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
+    object.primitives[0].dimensions = { pose_values[6], pose_values[7], pose_values[8] };
+
+    geometry_msgs::msg::Pose pose;
+    pose.position.x = pose_values[0];
+    pose.position.y = pose_values[1];
+    pose.position.z = pose_values[2] - 0.009 ;
+    tf2::Quaternion q;
+    q.setRPY(pose_values[3], pose_values[4], pose_values[5]);
+    pose.orientation = tf2::toMsg(q);
+    object.pose = pose;
+    planning_scene_interface.applyCollisionObject(object);
+
+    ti++;
+
+  }
 
   // add tsumikis to planning scene
   std::ifstream file_pose("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/poses.csv");
@@ -334,8 +369,8 @@ int main(int argc, char** argv)
 
   // シミュレーションモードの場合に実行速度を高速化
   if (simulation_mode) {
-      move_group_interface.setMaxVelocityScalingFactor(1.0); // 速度スケーリングを最大に
-      move_group_interface.setMaxAccelerationScalingFactor(1.0); // 加速度スケーリングを最大に
+      move_group_interface.setMaxVelocityScalingFactor(0.4); // 速度スケーリングを最大に
+      move_group_interface.setMaxAccelerationScalingFactor(0.4); // 加速度スケーリングを最大に
   }else{
       move_group_interface.setMaxVelocityScalingFactor(0.4); // 速度スケーリングを5%に
       move_group_interface.setMaxAccelerationScalingFactor(0.4); // 加速度スケーリングを5%に
@@ -421,7 +456,7 @@ int main(int argc, char** argv)
       //pick_pose_msg.pose.position.x += 0.044;
       //place_pose_msg.pose.position.x += 0.044;
 
-      auto plan_and_execute_try_all = [&](const geometry_msgs::msg::PoseStamped& pose, bool cartesian, int indices1, int indices2, std::string plan_file, std::string pose_file) {
+      auto plan_and_execute_try_all = [&](const geometry_msgs::msg::PoseStamped& pose, const geometry_msgs::msg::PoseStamped& current_pose, bool cartesian, int indices1, int indices2, std::string plan_file, std::string pose_file) {
         // プランナーのリストを定義
         std::vector<std::string> planners = {
           "RRTConnectkConfigDefault",
@@ -461,6 +496,22 @@ int main(int argc, char** argv)
           if (success) {
             plan.trajectory_ = trajectory;
 
+          } else{
+              std::vector<geometry_msgs::msg::Pose> pose_list;
+              for (int i = 2; i <= 10; ++i) {
+                  for (int j = 1; j < i; ++j) {
+                      geometry_msgs::msg::PoseStamped new_pose = current_pose;
+                      new_pose.pose.position.z -= j * ((current_pose.pose.position.z - pose.pose.position.z) / i);
+                      pose_list.push_back(new_pose.pose);
+                  }
+                  pose_list.push_back(pose.pose);
+                  success = (move_group_interface.computeCartesianPath(
+                      pose_list, 0.01, 0.0, trajectory, true) >= 0.95);
+
+                  if (success){
+                      break;
+                  }
+              }
           }
         } else {
 
@@ -611,8 +662,10 @@ int main(int argc, char** argv)
     
       if (index >= number){
         // 衝突回避用先端ゴムをアタッチ
-        move_group_interface.attachObject("pump_rubber");
-
+        bool pt_success = false;
+        while(!pt_success) {
+            pt_success = move_group_interface.attachObject("pump_rubber");
+        }
         // アプローチ用のターゲットBに移動（通常のプランニング）
         std::string plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(1) + ".yaml";
         std::string pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(1) + ".yaml";
@@ -625,12 +678,17 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
             //plan_and_execute(pick_approach_pose_msg, false, index, 1, plan_path, pose_path);
-            bool pe1_success = plan_and_execute_try_all(pick_approach_pose_msg, false, index, 1, plan_path, pose_path);
+            geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+            bool pe1_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
         }
         // 衝突回避用先端ゴムをデタッチ
-        move_group_interface.detachObject("pump_rubber");
-        planning_scene_interface.removeCollisionObjects({"pump_rubber"});
+        pt_success = false;
+        while(!pt_success){
 
+            pt_success = move_group_interface.detachObject("pump_rubber");
+        }
+        planning_scene_interface.removeCollisionObjects({"pump_rubber"});
+        
         // ターゲットAに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(2) + ".yaml";
         pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(2) + ".yaml";
@@ -645,10 +703,11 @@ int main(int argc, char** argv)
             //bool ct_success = false;
             int ct_count = 0;
             bool ct_success = false;
-            while (!ct_success || ct_count < 10){
+            while (!ct_success && ct_count < 10){
 
-                ct_success = plan_and_execute_try_all(pick_pose_msg, true, index, 2, plan_path, pose_path);
-                RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                ct_success = plan_and_execute_try_all(pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
+                RCLCPP_INFO(node->get_logger(), "ct_count: %d ct_success: %d", ct_count, ct_success);
                 ct_count++;
             }
             if (!ct_success){
@@ -672,9 +731,10 @@ int main(int argc, char** argv)
                 new_pick_app_pose.pose.position.z += rotated_translation.z();
 
                 ct_count = 0;
-                while(!ct_success || ct_count < 10){
+                while(!ct_success && ct_count < 10){
 
-                     ct_success = plan_and_execute_try_all(new_pick_app_pose, false, index, 1, plan_path, pose_path);
+                    geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                    ct_success = plan_and_execute_try_all(new_pick_app_pose, current_pose, false, index, 1, plan_path, pose_path);
                      RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
                      ct_count++;
                 }
@@ -700,9 +760,10 @@ int main(int argc, char** argv)
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
                     ct_count = 0;
-                    while (!ct_success || ct_count < 10) {
+                    while (!ct_success && ct_count < 10) {
 
-                        ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                        geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                        ct_success = plan_and_execute_try_all(new_pick_pose, current_pose, true, index, 2, plan_path, pose_path);
                         RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
                         ct_count++;
                     }
@@ -748,9 +809,10 @@ int main(int argc, char** argv)
 
                         moveit_msgs::msg::RobotTrajectory new_trajectory;
                         ct_count = 0;
-                        while(!ct_success || ct_count < 10){
+                        while(!ct_success && ct_count < 10){
 
-                            ct_success = plan_and_execute_try_all(new_pick_pose, true, index, 2, plan_path, pose_path);
+                            geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                            ct_success = plan_and_execute_try_all(new_pick_pose, current_pose, true, index, 2, plan_path, pose_path);
                             RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
                             ct_count++;
                         }
@@ -799,7 +861,8 @@ int main(int argc, char** argv)
                     new_pick_pose_msg.pose.position.z -= 0.001;
 
                     // ロボットを動かす
-                    plan_and_execute_try_all(new_pick_pose_msg, true, index, 2, plan_path, pose_path);
+                    geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                    plan_and_execute_try_all(new_pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
 
                     // 吸着確認
                     tsumiki_on = ask_item(node, "demo", "End_DI0", 1);
@@ -813,7 +876,9 @@ int main(int argc, char** argv)
                 }
                 // Place時の衝突を避けるために、元の位置に戻す
                 //pick_pose_msg.pose.position.z += 0.001 * attempt_count;
-                bool ct_success = plan_and_execute_try_all(pick_pose_msg, true, index, 2, plan_path, pose_path);
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+
+                bool ct_success = plan_and_execute_try_all(pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
                 //if (!ct_success){
                 //    plan_and_execute_try_all(pick_pose_msg, false, index, 2, plan_path, pose_path);
                 //}
@@ -823,9 +888,16 @@ int main(int argc, char** argv)
            if (tsumiki_on != 1) {
                 RCLCPP_WARN_STREAM(node->get_logger(), "Failed to pick up item after " << max_attempts << " attempts.");
            } 
+        }else{
+            rclcpp::sleep_for(std::chrono::milliseconds(500));
         }
-        move_group_interface.attachObject(object_name);
 
+        bool at_success = false;
+        while (!at_success){
+
+            at_success = move_group_interface.attachObject(object_name);
+            RCLCPP_INFO(node->get_logger(), "attached object: %s", object_name.c_str());
+        }
         // 再びアプローチ用のターゲットBに戻る（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(3) + ".yaml";
         pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(3) + ".yaml";
@@ -839,9 +911,10 @@ int main(int argc, char** argv)
             //plan_and_execute(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
             bool ct_success = false;
             int ct_count = 0;
-            while (!ct_success || ct_count < 10){
-            
-                ct_success = plan_and_execute_try_all(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
+            while (!ct_success && ct_count < 10){
+
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                ct_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, true, index, 3, plan_path, pose_path);
                 RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
                 ct_count++;
             }
@@ -861,7 +934,9 @@ int main(int argc, char** argv)
             move_group_interface.execute(plan);
         } else {
            //plan_and_execute(place_approach_pose_msg, false, index ,4, plan_path, pose_path);
-           plan_and_execute_try_all(place_approach_pose_msg, false, index ,4, plan_path, pose_path);
+
+           geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+           plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
         }
         /// Place時の直線移動をなくしてみる
         // ターゲットAに移動（直線運動）
@@ -877,9 +952,10 @@ int main(int argc, char** argv)
             //plan_and_execute(place_pose_msg, true, index, 5, plan_path, pose_path);
             bool ct2_success = false;
             int ct2_count = 0;
-            while (!ct2_success || ct2_count < 10){
+            while (!ct2_success && ct2_count < 10){
 
-                ct2_success = plan_and_execute_try_all(place_pose_msg, true, index, 5, plan_path, pose_path);
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                ct2_success = plan_and_execute_try_all(place_pose_msg, current_pose, true, index, 5, plan_path, pose_path);
                 RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
                 ct2_count++;
             }
@@ -903,9 +979,10 @@ int main(int argc, char** argv)
                 new_place_app_pose.pose.position.y += rotated_translation.y();
                 new_place_app_pose.pose.position.z += rotated_translation.z();
                 ct2_count = 0;
-                while(!ct2_success || ct2_count < 10){
+                while(!ct2_success && ct2_count < 10){
 
-                    ct2_success = plan_and_execute_try_all(new_place_app_pose, false, index, 4, plan_path, pose_path);
+                    geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                    ct2_success = plan_and_execute_try_all(new_place_app_pose, current_pose, false, index, 4, plan_path, pose_path);
                     RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
                     ct2_count++;
                 }
@@ -931,9 +1008,10 @@ int main(int argc, char** argv)
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
                     ct2_count = 0;
-                    while(!ct2_success || ct2_count < 10){
+                    while(!ct2_success && ct2_count < 10){
 
-                        ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                        geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                        ct2_success = plan_and_execute_try_all(new_place_pose, current_pose, true, index, 5, plan_path, pose_path);
                         RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
                         ct2_count++;
                     }
@@ -979,9 +1057,10 @@ int main(int argc, char** argv)
 
                         moveit_msgs::msg::RobotTrajectory new_trajectory;
                         ct2_count = 0;
-                        while(!ct2_success || ct2_count < 10){
+                        while(!ct2_success && ct2_count < 10){
 
-                            ct2_success = plan_and_execute_try_all(new_place_pose, true, index, 5, plan_path, pose_path);
+                            geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                            ct2_success = plan_and_execute_try_all(new_place_pose, current_pose, true, index, 5, plan_path, pose_path);
                             RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
                             ct2_count++;
                         }
@@ -1022,8 +1101,15 @@ int main(int argc, char** argv)
            rclcpp::sleep_for(1s);
 
         }
-        move_group_interface.detachObject(object_name);
-      
+        bool dt_success = false;
+        while (!dt_success){
+
+            rclcpp::sleep_for(3s);
+            dt_success = move_group_interface.detachObject(object_name);
+            RCLCPP_INFO(node->get_logger(), "detached object: %s", object_name.c_str());
+        }
+        //planning_scene_interface.removeCollisionObjects({object_name});
+
         // 再度アプローチ用のターゲットBに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(6) + ".yaml";
         pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(6) + ".yaml";
@@ -1037,9 +1123,10 @@ int main(int argc, char** argv)
             //plan_and_execute(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
             bool ct_success = false;
             int ct_count = 0;
-            while (!ct_success || ct_count < 10){
+            while (!ct_success && ct_count < 10){
 
-                ct_success = plan_and_execute_try_all(place_approach_pose_msg, true, index, 6, plan_path, pose_path);
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                ct_success = plan_and_execute_try_all(place_approach_pose_msg, current_pose, true, index, 6, plan_path, pose_path);
                 RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
                 ct_count++;
            }
