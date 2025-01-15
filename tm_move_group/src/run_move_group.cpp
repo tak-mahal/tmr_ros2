@@ -242,7 +242,7 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = true;
+  const bool simulation_mode = false;
   const bool use_file = false;
 
   rclcpp::init(argc, argv);
@@ -280,6 +280,26 @@ int main(int argc, char** argv)
   planning_scene_interface.applyCollisionObject(bpl);
   move_group_interface.setSupportSurfaceName("base_plate");
 
+  // add wall plate to planning scene
+  moveit_msgs::msg::CollisionObject wall;
+  wall.id = "wall_plate";
+  wall.header.frame_id = "base";
+  wall.primitives.resize(1);
+  wall.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
+  wall.primitives[0].dimensions = { 0.015, 2.0, 2.0 };
+
+  geometry_msgs::msg::Pose wpose;
+  wpose.position.x = 1.2;
+  wpose.position.y = 0.0;
+  wpose.position.z = 1.0 ;
+  tf2::Quaternion wq;
+  wq.setRPY(0, 0, 0);
+  wpose.orientation = tf2::toMsg(wq);
+  wall.pose = wpose;
+  planning_scene_interface.applyCollisionObject(wall);
+  //move_group_interface.setSupportSurfaceName("wall_plate");
+
+
   // add pump rubber cylinder
   moveit_msgs::msg::CollisionObject pr;
   pr.id = "pump_rubber";
@@ -291,13 +311,13 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose pr_pose;
   pr_pose.position.x = 0;
   pr_pose.position.y = -0.044;
-  pr_pose.position.z = 0.199 ;
+  pr_pose.position.z = 0.211 ;
   tf2::Quaternion pr_q;
   pr_q.setRPY(0, 0, 0);
   pr_pose.orientation = tf2::toMsg(pr_q);
   pr.pose = pr_pose;
   planning_scene_interface.applyCollisionObject(pr);
-
+  /*
   // add tenkei to planning scene
   std::ifstream file_tenkei("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/tenkei.csv");
   std::string line_tenkei;
@@ -331,7 +351,7 @@ int main(int argc, char** argv)
     ti++;
 
   }
-
+  */
   // add tsumikis to planning scene
   std::ifstream file_pose("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/poses.csv");
   std::string line_pose;
@@ -661,6 +681,13 @@ int main(int argc, char** argv)
       RCLCPP_INFO(node->get_logger(), "before planning");
     
       if (index >= number){
+
+        if(index == number){
+            //オブジェクトの読み込み待ち
+            rclcpp::sleep_for(20s);
+
+        }
+
         // 衝突回避用先端ゴムをアタッチ
         bool pt_success = false;
         while(!pt_success) {
@@ -760,6 +787,7 @@ int main(int argc, char** argv)
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
                     ct_count = 0;
+                    ct_success = false;
                     while (!ct_success && ct_count < 10) {
 
                         geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
@@ -809,6 +837,7 @@ int main(int argc, char** argv)
 
                         moveit_msgs::msg::RobotTrajectory new_trajectory;
                         ct_count = 0;
+                        ct_success = false;
                         while(!ct_success && ct_count < 10){
 
                             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
@@ -895,6 +924,7 @@ int main(int argc, char** argv)
         bool at_success = false;
         while (!at_success){
 
+            rclcpp::sleep_for(3s);
             at_success = move_group_interface.attachObject(object_name);
             RCLCPP_INFO(node->get_logger(), "attached object: %s", object_name.c_str());
         }
@@ -1008,6 +1038,7 @@ int main(int argc, char** argv)
 
                     moveit_msgs::msg::RobotTrajectory new_trajectory;
                     ct2_count = 0;
+                    ct2_success = false;
                     while(!ct2_success && ct2_count < 10){
 
                         geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
@@ -1057,6 +1088,7 @@ int main(int argc, char** argv)
 
                         moveit_msgs::msg::RobotTrajectory new_trajectory;
                         ct2_count = 0;
+                        ct2_success = false;
                         while(!ct2_success && ct2_count < 10){
 
                             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
@@ -1146,7 +1178,7 @@ int main(int argc, char** argv)
         geometry_msgs::msg::Pose pr2_pose;
         pr2_pose.position.x = 0;
         pr2_pose.position.y = -0.044;
-        pr2_pose.position.z = 0.199 ;
+        pr2_pose.position.z = 0.211 ;
         tf2::Quaternion pr2_q;
         pr2_q.setRPY(0, 0, 0);
         pr2_pose.orientation = tf2::toMsg(pr2_q);
@@ -1166,7 +1198,7 @@ int main(int argc, char** argv)
         tf2::fromMsg(current_pose, current_transform);
 
         // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-        tf2::Vector3 translation_offset(0, -0.044, 0.199+0.009);
+        tf2::Vector3 translation_offset(0, -0.044, 0.211+0.009);
 
        // オフセットを現在の座標系に対して適用
         tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
@@ -1191,9 +1223,10 @@ int main(int argc, char** argv)
       }
     
       index++;
-      /*
+      
+      //rclcpp::sleep_for(std::chrono::milliseconds(100));
 
-      */
+      
     }
     //rclcpp::spin_some(node); // ノードをスピンしてコールバックを処理
   }
