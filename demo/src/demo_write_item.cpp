@@ -17,7 +17,7 @@ int main(int argc, char **argv)
   
   auto request = std::make_shared<tm_msgs::srv::WriteItem::Request>();
   request->id = "123";
-  request->item = "Ctrl_DO0";
+  request->item = "Camera_Light";
   request->value = "1";
 
   while (!client->wait_for_service(1s)) {

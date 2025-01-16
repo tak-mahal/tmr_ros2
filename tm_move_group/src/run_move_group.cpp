@@ -1,4 +1,4 @@
-/*********************************************************************
+/********************************************************************
  *  run_move_group.cpp
  * 
  *  Various portions of the code are based on original source from 
@@ -244,6 +244,9 @@ int main(int argc, char** argv)
   // シミュレーションモードか実行モードかを指定
   const bool simulation_mode = false;
   const bool use_file = false;
+  // マシンに合わせてパスを変更する
+  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  //std::string:: base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -311,7 +314,7 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose pr_pose;
   pr_pose.position.x = 0;
   pr_pose.position.y = -0.044;
-  pr_pose.position.z = 0.211 ;
+  pr_pose.position.z = 0.206 ;
   tf2::Quaternion pr_q;
   pr_q.setRPY(0, 0, 0);
   pr_pose.orientation = tf2::toMsg(pr_q);
@@ -319,7 +322,7 @@ int main(int argc, char** argv)
   planning_scene_interface.applyCollisionObject(pr);
   /*
   // add tenkei to planning scene
-  std::ifstream file_tenkei("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/tenkei.csv");
+  std::ifstream file_tenkei(base_folder + "tenkei.csv");
   std::string line_tenkei;
   int ti = 0;
   while (std::getline(file_tenkei, line_tenkei)) {
@@ -353,7 +356,8 @@ int main(int argc, char** argv)
   }
   */
   // add tsumikis to planning scene
-  std::ifstream file_pose("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/poses.csv");
+  //std::ifstream file_pose("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/poses.csv");
+  std::ifstream file_pose(base_folder + "poses.csv");
   std::string line_pose;
   int i = 0;
   while (std::getline(file_pose, line_pose)) {
@@ -399,14 +403,14 @@ int main(int argc, char** argv)
 
   // CSVファイルを読み取る
   //std::ifstream file("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/mtc_tutorial/src/targets.csv");
-  std::ifstream pick_file("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/pick.csv");
-  std::ifstream place_file("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/place.csv");
-  std::ifstream tsumiki_ids_file("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/tsumiki_ids.csv");
+  std::ifstream pick_file(base_folder + "pick.csv");
+  std::ifstream place_file(base_folder + "place.csv");
+  std::ifstream tsumiki_ids_file(base_folder + "tsumiki_ids.csv");
   std::string pick_line, place_line, id_line;
   std::vector<int> failed_targets_indices;
 
-  std::string plan_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/plan/";
-  std::string pose_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/pose/";
+  std::string plan_folder = base_folder + "plan/";
+  std::string pose_folder = base_folder + "pose/";
 
   int index = 0;
   // bool tsumiki_on = false;
@@ -877,7 +881,9 @@ int main(int argc, char** argv)
         // 1秒待機
         if (!simulation_mode){
             set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
+            RCLCPP_INFO(node->get_logger(), "before 1sec");
             rclcpp::sleep_for(1s);
+            RCLCPP_INFO(node->get_logger(), "after 1sec");
 
             int tsumiki_on = ask_item(node, "demo", "End_DI0", 1);
             int attempt_count = 0;
@@ -894,6 +900,7 @@ int main(int argc, char** argv)
                     plan_and_execute_try_all(new_pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
 
                     // 吸着確認
+                    RCLCPP_INFO(node->get_logger(), "before 2nd ask item");
                     tsumiki_on = ask_item(node, "demo", "End_DI0", 1);
 
                     // ログ出力
@@ -918,13 +925,18 @@ int main(int argc, char** argv)
                 RCLCPP_WARN_STREAM(node->get_logger(), "Failed to pick up item after " << max_attempts << " attempts.");
            } 
         }else{
+
+            RCLCPP_INFO(node->get_logger(), "before millisec");
             rclcpp::sleep_for(std::chrono::milliseconds(500));
+            RCLCPP_INFO(node->get_logger(), "after millisec");
         }
 
         bool at_success = false;
         while (!at_success){
 
+            RCLCPP_INFO(node->get_logger(), "before 3sec");
             rclcpp::sleep_for(3s);
+            RCLCPP_INFO(node->get_logger(), "after 3sec");
             at_success = move_group_interface.attachObject(object_name);
             RCLCPP_INFO(node->get_logger(), "attached object: %s", object_name.c_str());
         }
@@ -1178,7 +1190,7 @@ int main(int argc, char** argv)
         geometry_msgs::msg::Pose pr2_pose;
         pr2_pose.position.x = 0;
         pr2_pose.position.y = -0.044;
-        pr2_pose.position.z = 0.211 ;
+        pr2_pose.position.z = 0.206 ;
         tf2::Quaternion pr2_q;
         pr2_q.setRPY(0, 0, 0);
         pr2_pose.orientation = tf2::toMsg(pr2_q);
@@ -1198,7 +1210,7 @@ int main(int argc, char** argv)
         tf2::fromMsg(current_pose, current_transform);
 
         // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-        tf2::Vector3 translation_offset(0, -0.044, 0.211+0.009);
+        tf2::Vector3 translation_offset(0, -0.044, 0.206+0.009);
 
        // オフセットを現在の座標系に対して適用
         tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
