@@ -314,13 +314,32 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose pr_pose;
   pr_pose.position.x = 0;
   pr_pose.position.y = -0.044;
-  pr_pose.position.z = 0.206 ;
+  pr_pose.position.z = 0.204 ;
   tf2::Quaternion pr_q;
   pr_q.setRPY(0, 0, 0);
   pr_pose.orientation = tf2::toMsg(pr_q);
   pr.pose = pr_pose;
   planning_scene_interface.applyCollisionObject(pr);
-  /*
+
+  // add dummy tsumiki
+  moveit_msgs::msg::CollisionObject dm;
+  dm.id = "dummy_tsumiki";
+  dm.header.frame_id = "flange";
+  dm.primitives.resize(1);
+  dm.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
+  dm.primitives[0].dimensions = { 0.110, 0.038, 0.020 };
+
+  geometry_msgs::msg::Pose dm_pose;
+  dm_pose.position.x = 0;
+  dm_pose.position.y = -0.044;
+  dm_pose.position.z = 0.204 ;
+  tf2::Quaternion dm_q;
+  dm_q.setRPY(0, 0, 0);
+  dm_pose.orientation = tf2::toMsg(dm_q);
+  dm.pose = dm_pose;
+  planning_scene_interface.applyCollisionObject(dm);
+
+
   // add tenkei to planning scene
   std::ifstream file_tenkei(base_folder + "tenkei.csv");
   std::string line_tenkei;
@@ -354,7 +373,7 @@ int main(int argc, char** argv)
     ti++;
 
   }
-  */
+
   // add tsumikis to planning scene
   //std::ifstream file_pose("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/poses.csv");
   std::ifstream file_pose(base_folder + "poses.csv");
@@ -692,6 +711,9 @@ int main(int argc, char** argv)
 
         }
 
+        // ダミー積木ををデタッチ
+        planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
+
         // 衝突回避用先端ゴムをアタッチ
         bool pt_success = false;
         while(!pt_success) {
@@ -892,6 +914,11 @@ int main(int argc, char** argv)
             if (tsumiki_on != 1) {
                geometry_msgs::msg::PoseStamped new_pick_pose_msg = pick_pose_msg;
                while (tsumiki_on != 1 && attempt_count < max_attempts) {
+
+                    RCLCPP_INFO(node->get_logger(), "before 0.5sec");
+                    rclcpp::sleep_for(std::chrono::milliseconds(500));
+                    RCLCPP_INFO(node->get_logger(), "after 0.5sec");
+
                     // pick_pose_msgをZ軸方向に-1mm（0.001m）下げる
                     new_pick_pose_msg.pose.position.z -= 0.001;
 
@@ -955,6 +982,10 @@ int main(int argc, char** argv)
             int ct_count = 0;
             while (!ct_success && ct_count < 10){
 
+                RCLCPP_INFO(node->get_logger(), "before millisec");
+                rclcpp::sleep_for(std::chrono::milliseconds(500));
+                RCLCPP_INFO(node->get_logger(), "after millisec");
+
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                 ct_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, true, index, 3, plan_path, pose_path);
                 RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
@@ -964,6 +995,10 @@ int main(int argc, char** argv)
                 plan_and_execute_try_all_constraint(pick_approach_pose_msg, true, index, 3, plan_path, pose_path);
             }
         }
+
+        bool dm_success = false;
+        dm_success = move_group_interface.attachObject("dummy_tsumiki");
+        RCLCPP_INFO(node->get_logger(), "attached object: %s", "dummy_tsumiki");
 
         // アプローチ用のターゲットBに移動（通常のプランニング）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(4) + ".yaml";
@@ -980,6 +1015,11 @@ int main(int argc, char** argv)
            geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
            plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
         }
+
+        dm_success = move_group_interface.detachObject("dummy_tsumiki");
+        RCLCPP_INFO(node->get_logger(), "dettached object: %s", "dummy_tsumiki");
+
+
         /// Place時の直線移動をなくしてみる
         // ターゲットAに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(5) + ".yaml";
@@ -995,6 +1035,11 @@ int main(int argc, char** argv)
             bool ct2_success = false;
             int ct2_count = 0;
             while (!ct2_success && ct2_count < 10){
+
+
+                RCLCPP_INFO(node->get_logger(), "before millisec");
+                rclcpp::sleep_for(std::chrono::milliseconds(500));
+                RCLCPP_INFO(node->get_logger(), "after millisec");
 
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                 ct2_success = plan_and_execute_try_all(place_pose_msg, current_pose, true, index, 5, plan_path, pose_path);
@@ -1022,6 +1067,10 @@ int main(int argc, char** argv)
                 new_place_app_pose.pose.position.z += rotated_translation.z();
                 ct2_count = 0;
                 while(!ct2_success && ct2_count < 10){
+
+                    RCLCPP_INFO(node->get_logger(), "before millisec");
+                    rclcpp::sleep_for(std::chrono::milliseconds(500));
+                    RCLCPP_INFO(node->get_logger(), "after millisec");
 
                     geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                     ct2_success = plan_and_execute_try_all(new_place_app_pose, current_pose, false, index, 4, plan_path, pose_path);
@@ -1052,6 +1101,10 @@ int main(int argc, char** argv)
                     ct2_count = 0;
                     ct2_success = false;
                     while(!ct2_success && ct2_count < 10){
+
+                        RCLCPP_INFO(node->get_logger(), "before millisec");
+                        rclcpp::sleep_for(std::chrono::milliseconds(500));
+                        RCLCPP_INFO(node->get_logger(), "after millisec");
 
                         geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                         ct2_success = plan_and_execute_try_all(new_place_pose, current_pose, true, index, 5, plan_path, pose_path);
@@ -1103,6 +1156,11 @@ int main(int argc, char** argv)
                         ct2_success = false;
                         while(!ct2_success && ct2_count < 10){
 
+
+                            RCLCPP_INFO(node->get_logger(), "before millisec");
+                            rclcpp::sleep_for(std::chrono::milliseconds(500));
+                            RCLCPP_INFO(node->get_logger(), "after millisec");
+
                             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                             ct2_success = plan_and_execute_try_all(new_place_pose, current_pose, true, index, 5, plan_path, pose_path);
                             RCLCPP_INFO(node->get_logger(), "ct2_count: %d", ct2_count);
@@ -1150,9 +1208,9 @@ int main(int argc, char** argv)
 
             rclcpp::sleep_for(3s);
             dt_success = move_group_interface.detachObject(object_name);
-            RCLCPP_INFO(node->get_logger(), "detached object: %s", object_name.c_str());
         }
-        //planning_scene_interface.removeCollisionObjects({object_name});
+        RCLCPP_INFO(node->get_logger(), "detached object: %s", object_name.c_str());
+        planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
 
         // 再度アプローチ用のターゲットBに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(6) + ".yaml";
@@ -1168,6 +1226,11 @@ int main(int argc, char** argv)
             bool ct_success = false;
             int ct_count = 0;
             while (!ct_success && ct_count < 10){
+
+
+                RCLCPP_INFO(node->get_logger(), "before millisec");
+                rclcpp::sleep_for(std::chrono::milliseconds(500));
+                RCLCPP_INFO(node->get_logger(), "after millisec");
 
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                 ct_success = plan_and_execute_try_all(place_approach_pose_msg, current_pose, true, index, 6, plan_path, pose_path);
@@ -1190,7 +1253,7 @@ int main(int argc, char** argv)
         geometry_msgs::msg::Pose pr2_pose;
         pr2_pose.position.x = 0;
         pr2_pose.position.y = -0.044;
-        pr2_pose.position.z = 0.206 ;
+        pr2_pose.position.z = 0.204 ;
         tf2::Quaternion pr2_q;
         pr2_q.setRPY(0, 0, 0);
         pr2_pose.orientation = tf2::toMsg(pr2_q);
@@ -1210,7 +1273,7 @@ int main(int argc, char** argv)
         tf2::fromMsg(current_pose, current_transform);
 
         // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-        tf2::Vector3 translation_offset(0, -0.044, 0.206+0.009);
+        tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
 
        // オフセットを現在の座標系に対して適用
         tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
