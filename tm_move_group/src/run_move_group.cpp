@@ -242,11 +242,11 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = false;
+  const bool simulation_mode = true;
   const bool use_file = false;
   // マシンに合わせてパスを変更する
-  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -327,7 +327,7 @@ int main(int argc, char** argv)
   dm.header.frame_id = "flange";
   dm.primitives.resize(1);
   dm.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-  dm.primitives[0].dimensions = { 0.110, 0.038, 0.020 };
+  dm.primitives[0].dimensions = { 0.114, 0.042, 0.024 };
 
   geometry_msgs::msg::Pose dm_pose;
   dm_pose.position.x = 0;
@@ -711,6 +711,10 @@ int main(int argc, char** argv)
 
         }
 
+        RCLCPP_INFO(node->get_logger(), "before 3sec");
+        rclcpp::sleep_for(3s);
+        RCLCPP_INFO(node->get_logger(), "after 3sec");
+
         // ダミー積木ををデタッチ
         planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
 
@@ -735,6 +739,11 @@ int main(int argc, char** argv)
             bool pe1_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
         }
         // 衝突回避用先端ゴムをデタッチ
+
+        RCLCPP_INFO(node->get_logger(), "before 3sec");
+        rclcpp::sleep_for(3s);
+        RCLCPP_INFO(node->get_logger(), "after 3sec");
+
         pt_success = false;
         while(!pt_success){
 
@@ -783,15 +792,36 @@ int main(int argc, char** argv)
                 new_pick_app_pose.pose.position.y += rotated_translation.y();
                 new_pick_app_pose.pose.position.z += rotated_translation.z();
 
-                ct_count = 0;
-                while(!ct_success && ct_count < 10){
 
-                    geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
-                    ct_success = plan_and_execute_try_all(new_pick_app_pose, current_pose, false, index, 1, plan_path, pose_path);
-                     RCLCPP_INFO(node->get_logger(), "ct_count: %d", ct_count);
-                     ct_count++;
+                // 衝突回避用先端ゴムをアタッチ
+                RCLCPP_INFO(node->get_logger(), "before 3sec");
+                rclcpp::sleep_for(3s);
+                RCLCPP_INFO(node->get_logger(), "after 3sec");
+
+                bool pt_success = false;
+                while(!pt_success) {
+                    pt_success = move_group_interface.attachObject("pump_rubber");
                 }
+
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                ct_success = plan_and_execute_try_all(new_pick_app_pose, current_pose, false, index, 1, plan_path, pose_path);
+
+                // 衝突回避用先端ゴムをデタッチ
+                RCLCPP_INFO(node->get_logger(), "before 3sec");
+                rclcpp::sleep_for(3s);
+                RCLCPP_INFO(node->get_logger(), "after 3sec");
+
+                pt_success = false;
+                while(!pt_success){
+
+                    pt_success = move_group_interface.detachObject("pump_rubber");
+                }
+                planning_scene_interface.removeCollisionObjects({"pump_rubber"});
+
+
                 if (ct_success) {
+
+
                     RCLCPP_INFO(node->get_logger(), "recovery succeeded for id: %d - %d", index, 1);
                     pick_approach_pose_msg = new_pick_app_pose;
                     geometry_msgs::msg::PoseStamped new_pick_pose = pick_pose_msg;
@@ -915,16 +945,16 @@ int main(int argc, char** argv)
                geometry_msgs::msg::PoseStamped new_pick_pose_msg = pick_pose_msg;
                while (tsumiki_on != 1 && attempt_count < max_attempts) {
 
-                    RCLCPP_INFO(node->get_logger(), "before 0.5sec");
-                    rclcpp::sleep_for(std::chrono::milliseconds(500));
-                    RCLCPP_INFO(node->get_logger(), "after 0.5sec");
-
                     // pick_pose_msgをZ軸方向に-1mm（0.001m）下げる
                     new_pick_pose_msg.pose.position.z -= 0.001;
 
                     // ロボットを動かす
                     geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                     plan_and_execute_try_all(new_pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
+
+                    RCLCPP_INFO(node->get_logger(), "before 0.5sec");
+                    rclcpp::sleep_for(std::chrono::milliseconds(500));
+                    RCLCPP_INFO(node->get_logger(), "after 0.5sec");
 
                     // 吸着確認
                     RCLCPP_INFO(node->get_logger(), "before 2nd ask item");
@@ -958,15 +988,16 @@ int main(int argc, char** argv)
             RCLCPP_INFO(node->get_logger(), "after millisec");
         }
 
-        bool at_success = false;
-        while (!at_success){
+        //bool at_success = false;
+        //while (!at_success){
 
-            RCLCPP_INFO(node->get_logger(), "before 3sec");
-            rclcpp::sleep_for(3s);
-            RCLCPP_INFO(node->get_logger(), "after 3sec");
-            at_success = move_group_interface.attachObject(object_name);
-            RCLCPP_INFO(node->get_logger(), "attached object: %s", object_name.c_str());
-        }
+        //    RCLCPP_INFO(node->get_logger(), "before 3sec");
+        //    rclcpp::sleep_for(3s);
+        //    RCLCPP_INFO(node->get_logger(), "after 3sec");
+        //    at_success = move_group_interface.attachObject(object_name);
+        //    RCLCPP_INFO(node->get_logger(), "attached object: %s", object_name.c_str());
+        //}
+
         // 再びアプローチ用のターゲットBに戻る（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(3) + ".yaml";
         pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(3) + ".yaml";
@@ -996,6 +1027,28 @@ int main(int argc, char** argv)
             }
         }
 
+        RCLCPP_INFO(node->get_logger(), "before 3sec");
+        rclcpp::sleep_for(3s);
+        RCLCPP_INFO(node->get_logger(), "after 3sec");
+
+        // add dummy tsumiki
+        moveit_msgs::msg::CollisionObject dm2;
+        dm2.id = "dummy_tsumiki";
+        dm2.header.frame_id = "flange";
+        dm2.primitives.resize(1);
+        dm2.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
+        dm2.primitives[0].dimensions = { 0.114, 0.042, 0.024 };
+
+        geometry_msgs::msg::Pose dm2_pose;
+        dm2_pose.position.x = 0;
+        dm2_pose.position.y = -0.044;
+        dm2_pose.position.z = 0.204 ;
+        tf2::Quaternion dm_q2;
+        dm_q2.setRPY(0, 0, 0);
+        dm2_pose.orientation = tf2::toMsg(dm_q2);
+        dm2.pose = dm2_pose;
+        planning_scene_interface.applyCollisionObject(dm2);
+
         bool dm_success = false;
         dm_success = move_group_interface.attachObject("dummy_tsumiki");
         RCLCPP_INFO(node->get_logger(), "attached object: %s", "dummy_tsumiki");
@@ -1016,7 +1069,12 @@ int main(int argc, char** argv)
            plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
         }
 
+        RCLCPP_INFO(node->get_logger(), "before 3sec");
+        rclcpp::sleep_for(3s);
+        RCLCPP_INFO(node->get_logger(), "after 3sec");
+
         dm_success = move_group_interface.detachObject("dummy_tsumiki");
+        planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
         RCLCPP_INFO(node->get_logger(), "dettached object: %s", "dummy_tsumiki");
 
 
@@ -1203,14 +1261,13 @@ int main(int argc, char** argv)
            rclcpp::sleep_for(1s);
 
         }
-        bool dt_success = false;
-        while (!dt_success){
+        //bool dt_success = false;
+        //while (!dt_success){
 
-            rclcpp::sleep_for(3s);
-            dt_success = move_group_interface.detachObject(object_name);
-        }
-        RCLCPP_INFO(node->get_logger(), "detached object: %s", object_name.c_str());
-        planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
+        //    rclcpp::sleep_for(3s);
+        //    dt_success = move_group_interface.detachObject(object_name);
+        //}
+        //RCLCPP_INFO(node->get_logger(), "detached object: %s", object_name.c_str());
 
         // 再度アプローチ用のターゲットBに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(6) + ".yaml";
@@ -1242,6 +1299,9 @@ int main(int argc, char** argv)
            }
         }
 
+        RCLCPP_INFO(node->get_logger(), "before 3sec");
+        rclcpp::sleep_for(3s);
+        RCLCPP_INFO(node->get_logger(), "after 3sec");
         // add pump rubber cylinder
         moveit_msgs::msg::CollisionObject pr2;
         pr2.id = "pump_rubber";
@@ -1261,41 +1321,45 @@ int main(int argc, char** argv)
         planning_scene_interface.applyCollisionObject(pr2);
 
 
-      } else{
+      } //else{
 
-        std::map<std::string, moveit_msgs::msg::CollisionObject> collision_objects_map = planning_scene_interface.getObjects({object_name});
-        moveit_msgs::msg::CollisionObject collision_object = collision_objects_map[object_name];
-        // 現在のPoseを取得
-        geometry_msgs::msg::Pose current_pose = place_pose_msg.pose;
+      std::map<std::string, moveit_msgs::msg::CollisionObject> collision_objects_map = planning_scene_interface.getObjects({object_name});
+      moveit_msgs::msg::CollisionObject collision_object = collision_objects_map[object_name];
+      // 現在のPoseを取得
+      geometry_msgs::msg::Pose current_pose = place_pose_msg.pose;
 
-        // tf2::Transformを使って現在のPoseを変換
-        tf2::Transform current_transform;
-        tf2::fromMsg(current_pose, current_transform);
+      // tf2::Transformを使って現在のPoseを変換
+      tf2::Transform current_transform;
+      tf2::fromMsg(current_pose, current_transform);
 
-        // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-        tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
+      // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
+      tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
 
-       // オフセットを現在の座標系に対して適用
-        tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
-        tf2::Transform new_transform = current_transform * offset_transform;
+     // オフセットを現在の座標系に対して適用
+      tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
+      tf2::Transform new_transform = current_transform * offset_transform;
 
-        // 新しいPoseを設定
-        geometry_msgs::msg::Pose new_pose;
-        new_pose.position.x = new_transform.getOrigin().x();
-        new_pose.position.y = new_transform.getOrigin().y();
-        new_pose.position.z = new_transform.getOrigin().z();
-        new_pose.orientation.x = new_transform.getRotation().x();
-        new_pose.orientation.y = new_transform.getRotation().y();
-        new_pose.orientation.z = new_transform.getRotation().z();
-        new_pose.orientation.w = new_transform.getRotation().w();
+      // 新しいPoseを設定
+      geometry_msgs::msg::Pose new_pose;
+      new_pose.position.x = new_transform.getOrigin().x();
+      new_pose.position.y = new_transform.getOrigin().y();
+      new_pose.position.z = new_transform.getOrigin().z();
+      new_pose.orientation.x = new_transform.getRotation().x();
+      new_pose.orientation.y = new_transform.getRotation().y();
+      new_pose.orientation.z = new_transform.getRotation().z();
+      new_pose.orientation.w = new_transform.getRotation().w();
  
-        // Collision ObjectのPoseを変更
-        collision_object.pose = new_pose;
+      // Collision ObjectのPoseを変更
+      collision_object.pose = new_pose;
 
-        // 変更したCollision Objectを更新する
-        planning_scene_interface.applyCollisionObject(collision_object);
+      RCLCPP_INFO(node->get_logger(), "before 0.2sec");
+      rclcpp::sleep_for(std::chrono::milliseconds(500));
+      RCLCPP_INFO(node->get_logger(), "after 0.2sec");
 
-      }
+      // 変更したCollision Objectを更新する
+      planning_scene_interface.applyCollisionObject(collision_object);
+
+      //}
     
       index++;
       
