@@ -42,6 +42,7 @@
 #include <yaml-cpp/yaml.h>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <chrono>
+#include <moveit/robot_state/robot_state.h>
 
 using namespace std::chrono_literals;
 
@@ -209,6 +210,36 @@ int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::str
     RCLCPP_ERROR_STREAM(node->get_logger(), "Failed to call service");
     return -1;  // エラーを示す値
   }
+}
+
+void moveToPosition(const std::vector<double>& positions, moveit::planning_interface::MoveGroupInterface& move_group) {
+    moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
+    //const robot_state::JointModelGroup* joint_model_group = move_group.getCurrentState()->getJointModelGroup(move_group.getName());
+    const moveit::core::JointModelGroup* joint_model_group = move_group.getCurrentState()->getJointModelGroup(move_group.getName());
+    move_group.setJointValueTarget(positions);
+    moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+    
+    bool success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+    if (success) {
+        move_group.move();
+    } else {
+        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Planning failed!");
+    }
+}
+
+std::vector<double> readPositionsFromYaml(const std::string& file_path, bool get_first) {
+    std::ifstream file(file_path);
+    YAML::Node yaml_data = YAML::Load(file);
+    YAML::Node trajectory = yaml_data["trajectory"];
+    
+    if (trajectory.IsSequence()) {
+        if (get_first) {
+            return trajectory[0]["positions"].as<std::vector<double>>();
+        } else {
+            return trajectory[trajectory.size() - 1]["positions"].as<std::vector<double>>();
+        }
+    }
+    return {};
 }
 
 
@@ -514,132 +545,6 @@ int main(int argc, char** argv)
 
     RCLCPP_INFO(node->get_logger(), "tsumiki setup completed");
 
-/*
-  //std::ifstream file_pose("/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/poses.csv");
-  std::ifstream file_pose(base_folder + "poses.csv");
-  std::string line_pose;
-  std::ifstream file_place_ini(base_folder + "place.csv");
-  std::string line_place_ini;
-  std::ifstream file_ids_ini(base_folder + "tsumiki_ids.csv");
-  std::string line_ids_ini;
-
-  int i = 0;
-  while (std::getline(file_pose, line_pose)) {
-
-    //std::getline(file_pose, line_pose);
-    std::stringstream ss_pose(line_pose);
-    std::string value_pose;
-    std::vector<double> pose_values;
-
-    while (std::getline(ss_pose, value_pose, ',')) {
-      pose_values.push_back(std::stod(value_pose));
-    }
-
-    moveit_msgs::msg::CollisionObject object;
-    object.id = "tsumiki_" + std::to_string(i);
-    object.header.frame_id = "base";
-    object.primitives.resize(1);
-    object.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-    object.primitives[0].dimensions = { 0.106, 0.034, 0.016 };
-
-    geometry_msgs::msg::Pose pose;
-    pose.position.x = pose_values[0];
-    pose.position.y = pose_values[1];
-    pose.position.z = pose_values[2] - 0.009 ;
-    tf2::Quaternion q;
-    q.setRPY(pose_values[3], pose_values[4], pose_values[5]);
-    pose.orientation = tf2::toMsg(q);
-    object.pose = pose;
-    planning_scene_interface.applyCollisionObject(object);
-    RCLCPP_INFO(node->get_logger(), "tsumiki added id: %d", i);
-    
-    i++;
-  }
-
-  int mi = 0;
-  int tsumiki_id_ini;
-  while (std::getline(file_ids_ini, line_ids_ini)) {
-
-    std::getline(file_place_ini, line_place_ini);
-    std::stringstream ss_place_ini(line_place_ini);
-    std::string value_place_ini;
-    std::vector<double> place_ini_values;
-
-    while (std::getline(ss_place_ini, value_place_ini, ',')) {
-      place_ini_values.push_back(std::stod(value_place_ini));
-    }
-
-    //std::getline(file_ids_ini, line_ids_ini);
-    std::stringstream ss_ids_ini(line_ids_ini);
-    ss_ids_ini >> tsumiki_id_ini;
-
-    std::string object_name = "tsumiki_" + std::to_string(tsumiki_id_ini);
-    if (mi < number){
-
-        std::map<std::string, moveit_msgs::msg::CollisionObject> collision_objects_map = planning_scene_interface.getObjects({object_name});
-        moveit_msgs::msg::CollisionObject object = collision_objects_map[object_name];
-
-
-        //tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
-        //moveit_msgs::msg::CollisionObject object;
-        //object.id = object_name ;
-        //object.header.frame_id = "base";
-        //object.primitives.resize(1);
-        //object.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-        //object.primitives[0].dimensions = { 0.106, 0.034, 0.016 };
-
-        geometry_msgs::msg::Pose pose;
-        pose.position.x = place_ini_values[0];
-        pose.position.y = place_ini_values[1];
-        pose.position.z = place_ini_values[2];
-        tf2::Quaternion q;
-        q.setRPY(place_ini_values[3], place_ini_values[4], place_ini_values[5]);
-        pose.orientation = tf2::toMsg(q);
-        //object.pose = pose;
-
-        // tf2::Transformを使って現在のPoseを変換
-        tf2::Transform current_transform;
-        tf2::fromMsg(pose, current_transform);
-
-        // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-        tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
-
-        // オフセットを現在の座標系に対して適用
-        tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
-        tf2::Transform new_transform = current_transform * offset_transform;
-
-        // 新しいPoseを設定
-        geometry_msgs::msg::Pose new_pose;
-        new_pose.position.x = new_transform.getOrigin().x();
-        new_pose.position.y = new_transform.getOrigin().y();
-        new_pose.position.z = new_transform.getOrigin().z();
-        new_pose.orientation.x = new_transform.getRotation().x();
-        new_pose.orientation.y = new_transform.getRotation().y();
-        new_pose.orientation.z = new_transform.getRotation().z();
-        new_pose.orientation.w = new_transform.getRotation().w();
- 
-        // Collision ObjectのPoseを変更
-        object.pose = new_pose;
-
-        //RCLCPP_INFO(node->get_logger(), "before 0.2sec");
-        //rclcpp::sleep_for(std::chrono::milliseconds(500));
-        //RCLCPP_INFO(node->get_logger(), "after 0.2sec");
-
-        planning_scene_interface.applyCollisionObject(object);
-        RCLCPP_INFO(node->get_logger(), "tsumiki moved id: %d", tsumiki_id_ini);
-
-        //RCLCPP_INFO(node->get_logger(), "before millisec");
-        rclcpp::sleep_for(std::chrono::milliseconds(300));
-        //RCLCPP_INFO(node->get_logger(), "after millisec");
-
-    }
-
-    mi++;
-
-  }
-  RCLCPP_INFO(node->get_logger(), "tsumiki added");
-*/
-
   // シミュレーションモードの場合に実行速度を高速化
   if (simulation_mode) {
       move_group_interface.setMaxVelocityScalingFactor(0.4); // 速度スケーリングを最大に
@@ -935,11 +840,6 @@ int main(int argc, char** argv)
     
       if (index >= number){
 
-        if(index == number){
-            //オブジェクトの読み込み待ち
-            rclcpp::sleep_for(20s);
-
-        }
 
         RCLCPP_INFO(node->get_logger(), "before 3sec");
         rclcpp::sleep_for(3s);
@@ -953,6 +853,29 @@ int main(int argc, char** argv)
         while(!pt_success) {
             pt_success = move_group_interface.attachObject("pump_rubber");
         }
+
+        if(index == number){
+            //オブジェクトの読み込み待ち
+            rclcpp::sleep_for(10s);
+            std::string file_path;
+            //初期状態または前ステップ終了状態に移動
+            if (number == 0) {
+                file_path = plan_folder + "plan_0_1.yaml";
+            } else {
+                file_path = plan_folder + "plan_" + std::to_string(number - 1) + "_6.yaml";
+            }
+
+            bool get_first_position = (number == 0);
+            std::vector<double> positions = readPositionsFromYaml(file_path, get_first_position);
+
+            if (!positions.empty()) {
+                moveToPosition(positions, move_group_interface);
+            } else {
+                RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to read positions from YAML file.");
+            }
+
+        }
+
         // アプローチ用のターゲットBに移動（通常のプランニング）
         std::string plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(1) + ".yaml";
         std::string pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(1) + ".yaml";
