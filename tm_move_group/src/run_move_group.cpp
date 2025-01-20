@@ -139,9 +139,10 @@ void set_io(rclcpp::Node::SharedPtr node, int8_t module, int8_t type, int8_t pin
     RCLCPP_ERROR(node->get_logger(), "Service not available");
     return;
   }
+
   auto result = client->async_send_request(request);
 
-  // 非同期の結果を待つためにスピンを使う
+  // rclcpp::spin_some(node)を使用して非同期の結果を待つ
   while (rclcpp::ok() && result.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
     rclcpp::spin_some(node);
   }
@@ -155,7 +156,6 @@ void set_io(rclcpp::Node::SharedPtr node, int8_t module, int8_t type, int8_t pin
   } else {
     RCLCPP_ERROR(node->get_logger(), "Failed to call service");
   }
-
   RCLCPP_INFO(node->get_logger(), "end function");
 }
 
@@ -166,7 +166,7 @@ int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::str
   request->item = item;
   request->wait_time = wait_time;
 
-  while (!client->wait_for_service(1s)) {
+  while (!client->wait_for_service(std::chrono::seconds(1))) {
     if (!rclcpp::ok()) {
       RCLCPP_ERROR_STREAM(node->get_logger(), "Interrupted while waiting for the service. Exiting.");
       return -1;  // エラーを示す値
@@ -175,7 +175,8 @@ int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::str
   }
 
   auto result = client->async_send_request(request);
-  // 非同期の結果を待つためにスピンを使う
+
+  // rclcpp::spin_some(node)を使用して非同期の結果を待つ
   while (rclcpp::ok() && result.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
     rclcpp::spin_some(node);
   }
@@ -188,29 +189,30 @@ int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::str
         size_t pos = value_str.find('=');
         if (pos != std::string::npos) {
           std::string number_str = value_str.substr(pos + 1);
-          int value = std::stoi(number_str);  // `=`以降の文字列を整数に変換
+          int value = std::stoi(number_str);
           RCLCPP_INFO_STREAM(node->get_logger(), "Request successful, extracted value: " << value);
           return value;
         } else {
           RCLCPP_ERROR_STREAM(node->get_logger(), "Invalid format: '=' not found in value");
-          return -1;  // エラーを示す値
+          return -1;
         }
       } catch (const std::invalid_argument &e) {
         RCLCPP_ERROR_STREAM(node->get_logger(), "Invalid argument error in std::stoi: " << e.what());
-        return -1;  // エラーを示す値
+        return -1;
       } catch (const std::out_of_range &e) {
         RCLCPP_ERROR_STREAM(node->get_logger(), "Out of range error in std::stoi: " << e.what());
-        return -1;  // エラーを示す値
+        return -1;
       }
     } else {
       RCLCPP_WARN_STREAM(node->get_logger(), "Request not successful");
-      return -1;  // エラーを示す値
+      return -1;
     }
   } else {
     RCLCPP_ERROR_STREAM(node->get_logger(), "Failed to call service");
-    return -1;  // エラーを示す値
+    return -1;
   }
 }
+
 
 void moveToPosition(const std::vector<double>& positions, moveit::planning_interface::MoveGroupInterface& move_group) {
     moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
@@ -287,6 +289,9 @@ int main(int argc, char** argv)
   rclcpp::executors::SingleThreadedExecutor executor;
   executor.add_node(node);
   std::thread([&executor]() { executor.spin(); }).detach();
+
+  auto ask_node = std::make_shared<rclcpp::Node>("ask_item_client");
+  auto set_node = std::make_shared<rclcpp::Node>("set_io_client");
 
   static const std::string PLANNING_GROUP = "tmr_arm";
 
@@ -569,8 +574,8 @@ int main(int argc, char** argv)
   int index = 0;
   // bool tsumiki_on = false;
   // IOの初期地をセット
-  set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 0, tm_msgs::srv::SetIO::Request::STATE_ON);
-  set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
+  set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 0, tm_msgs::srv::SetIO::Request::STATE_ON);
+  set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
 
   while (rclcpp::ok() && std::getline(pick_file, pick_line) && std::getline(place_file, place_line) && std::getline(tsumiki_ids_file, id_line)) {
     std::stringstream pick_ss(pick_line);
@@ -1085,10 +1090,10 @@ int main(int argc, char** argv)
         // つかむ
         // 1秒待機
         if (!simulation_mode){
-            set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
+            set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
             RCLCPP_INFO(node->get_logger(), "before ask 1sec");
             rclcpp::sleep_for(1s);
-            int tsumiki_on = ask_item(node, "demo", "End_DI0", 1);
+            int tsumiki_on = ask_item(ask_node, "demo", "End_DI0", 1);
             RCLCPP_INFO(node->get_logger(), "after ask");
 
             int attempt_count = 0;
@@ -1111,13 +1116,13 @@ int main(int argc, char** argv)
                     plan_and_execute_try_all(new_pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
                     RCLCPP_INFO(node->get_logger(), "after move 1sec");
 
-                    RCLCPP_INFO(node->get_logger(), "before ask again 1sec");
-                    rclcpp::sleep_for(1s);
-                    RCLCPP_INFO(node->get_logger(), "after ask again 1sec");
+                    //RCLCPP_INFO(node->get_logger(), "before ask again 1sec");
+                    //rclcpp::sleep_for(1s);
+                    //RCLCPP_INFO(node->get_logger(), "after ask again 1sec");
 
                     // 吸着確認
                     RCLCPP_INFO(node->get_logger(), "before 2nd ask item");
-                    tsumiki_on = ask_item(node, "demo", "End_DI0", 1);
+                    tsumiki_on = ask_item(ask_node, "demo", "End_DI0", 1);
 
                     // ログ出力
                     RCLCPP_INFO_STREAM(node->get_logger(), "Attempt " << (attempt_count + 1) << ": Lowering Z: " << new_pick_pose_msg.pose.position.z);
@@ -1419,7 +1424,7 @@ int main(int argc, char** argv)
         // 離す
 
         if (!simulation_mode) {
-           set_io(node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
+           set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
            rclcpp::sleep_for(1s);
 
         }
