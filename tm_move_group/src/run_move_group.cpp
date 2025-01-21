@@ -275,11 +275,11 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = false;
+  const bool simulation_mode = true;
   const bool use_file = false;
   // マシンに合わせてパスを変更する
-  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -363,7 +363,7 @@ int main(int argc, char** argv)
   dm.header.frame_id = "flange";
   dm.primitives.resize(1);
   dm.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-  dm.primitives[0].dimensions = { 0.114, 0.042, 0.024 };
+  dm.primitives[0].dimensions = { 0.120, 0.048, 0.030 };
 
   geometry_msgs::msg::Pose dm_pose;
   dm_pose.position.x = 0;
@@ -952,9 +952,9 @@ int main(int argc, char** argv)
 
 
                 // 衝突回避用先端ゴムをアタッチ
-                RCLCPP_INFO(node->get_logger(), "before 3sec");
-                rclcpp::sleep_for(3s);
-                RCLCPP_INFO(node->get_logger(), "after 3sec");
+                RCLCPP_INFO(node->get_logger(), "before 2sec");
+                rclcpp::sleep_for(1s);
+                RCLCPP_INFO(node->get_logger(), "after 2sec");
 
                 bool pt_success = false;
                 while(!pt_success) {
@@ -965,9 +965,9 @@ int main(int argc, char** argv)
                 ct_success = plan_and_execute_try_all(new_pick_app_pose, current_pose, false, index, 1, plan_path, pose_path);
 
                 // 衝突回避用先端ゴムをデタッチ
-                RCLCPP_INFO(node->get_logger(), "before 3sec");
-                rclcpp::sleep_for(3s);
-                RCLCPP_INFO(node->get_logger(), "after 3sec");
+                RCLCPP_INFO(node->get_logger(), "before 1sec");
+                rclcpp::sleep_for(1s);
+                RCLCPP_INFO(node->get_logger(), "after 1sec");
 
                 pt_success = false;
                 while(!pt_success){
@@ -1091,8 +1091,8 @@ int main(int argc, char** argv)
         // 1秒待機
         if (!simulation_mode){
             set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
-            RCLCPP_INFO(node->get_logger(), "before ask 1sec");
-            rclcpp::sleep_for(1s);
+            RCLCPP_INFO(node->get_logger(), "before ask");
+            //rclcpp::sleep_for(1s);
             int tsumiki_on = ask_item(ask_node, "demo", "End_DI0", 1);
             RCLCPP_INFO(node->get_logger(), "after ask");
 
@@ -1109,12 +1109,12 @@ int main(int argc, char** argv)
 
                     // ロボットを動かす
 
-                    RCLCPP_INFO(node->get_logger(), "before move 1sec");
-                    rclcpp::sleep_for(1s);
+                    RCLCPP_INFO(node->get_logger(), "before move");
+                    //rclcpp::sleep_for(1s);
 
                     geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                     plan_and_execute_try_all(new_pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
-                    RCLCPP_INFO(node->get_logger(), "after move 1sec");
+                    RCLCPP_INFO(node->get_logger(), "after move");
 
                     //RCLCPP_INFO(node->get_logger(), "before ask again 1sec");
                     //rclcpp::sleep_for(1s);
@@ -1133,12 +1133,12 @@ int main(int argc, char** argv)
                 }
                 // Place時の衝突を避けるために、元の位置に戻す
                 //pick_pose_msg.pose.position.z += 0.001 * attempt_count;
-                RCLCPP_INFO(node->get_logger(), "before  go back 1sec");
-                rclcpp::sleep_for(1s);
-                RCLCPP_INFO(node->get_logger(), "after go back 1sec");
+                RCLCPP_INFO(node->get_logger(), "before  go back");
+                //rclcpp::sleep_for(1s);
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
 
                 bool ct_success = plan_and_execute_try_all(pick_pose_msg, current_pose, true, index, 2, plan_path, pose_path);
+                RCLCPP_INFO(node->get_logger(), "after go back");
                 //if (!ct_success){
                 //    plan_and_execute_try_all(pick_pose_msg, false, index, 2, plan_path, pose_path);
                 //}
@@ -1151,7 +1151,7 @@ int main(int argc, char** argv)
         }else{
 
             RCLCPP_INFO(node->get_logger(), "before millisec");
-            rclcpp::sleep_for(std::chrono::milliseconds(500));
+            rclcpp::sleep_for(std::chrono::milliseconds(100));
             RCLCPP_INFO(node->get_logger(), "after millisec");
         }
 
@@ -1465,9 +1465,9 @@ int main(int argc, char** argv)
            }
         }
 
-        RCLCPP_INFO(node->get_logger(), "before 3sec");
-        rclcpp::sleep_for(3s);
-        RCLCPP_INFO(node->get_logger(), "after 3sec");
+        RCLCPP_INFO(node->get_logger(), "before 1sec");
+        rclcpp::sleep_for(1s);
+        RCLCPP_INFO(node->get_logger(), "after 1sec");
         // add pump rubber cylinder
         moveit_msgs::msg::CollisionObject pr2;
         pr2.id = "pump_rubber";
@@ -1518,9 +1518,9 @@ int main(int argc, char** argv)
         // Collision ObjectのPoseを変更
         collision_object.pose = new_pose;
 
-        RCLCPP_INFO(node->get_logger(), "before 0.2sec");
+        RCLCPP_INFO(node->get_logger(), "before 0.5sec");
         rclcpp::sleep_for(std::chrono::milliseconds(500));
-        RCLCPP_INFO(node->get_logger(), "after 0.2sec");
+        RCLCPP_INFO(node->get_logger(), "after 0.5sec");
 
         // 変更したCollision Objectを更新する
         planning_scene_interface.applyCollisionObject(collision_object);
