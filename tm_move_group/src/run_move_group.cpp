@@ -275,11 +275,11 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = true;
+  const bool simulation_mode = false;
   const bool use_file = false;
   // マシンに合わせてパスを変更する
-  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -350,7 +350,7 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose pr_pose;
   pr_pose.position.x = 0;
   pr_pose.position.y = -0.044;
-  pr_pose.position.z = 0.204 ;
+  pr_pose.position.z = 0.210 ;
   tf2::Quaternion pr_q;
   pr_q.setRPY(0, 0, 0);
   pr_pose.orientation = tf2::toMsg(pr_q);
@@ -368,7 +368,7 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose dm_pose;
   dm_pose.position.x = 0;
   dm_pose.position.y = -0.044;
-  dm_pose.position.z = 0.204 ;
+  dm_pose.position.z = 0.210 ;
   tf2::Quaternion dm_q;
   dm_q.setRPY(0, 0, 0);
   dm_pose.orientation = tf2::toMsg(dm_q);
@@ -1194,9 +1194,9 @@ int main(int argc, char** argv)
             }
         }
 
-        RCLCPP_INFO(node->get_logger(), "before 3sec");
-        rclcpp::sleep_for(3s);
-        RCLCPP_INFO(node->get_logger(), "after 3sec");
+        RCLCPP_INFO(node->get_logger(), "before 1sec");
+        rclcpp::sleep_for(1s);
+        RCLCPP_INFO(node->get_logger(), "after 1sec");
 
         // add dummy tsumiki
         moveit_msgs::msg::CollisionObject dm2;
@@ -1204,12 +1204,12 @@ int main(int argc, char** argv)
         dm2.header.frame_id = "flange";
         dm2.primitives.resize(1);
         dm2.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-        dm2.primitives[0].dimensions = { 0.114, 0.042, 0.024 };
+        dm2.primitives[0].dimensions = { 0.120, 0.048, 0.030 };
 
         geometry_msgs::msg::Pose dm2_pose;
         dm2_pose.position.x = 0;
         dm2_pose.position.y = -0.044;
-        dm2_pose.position.z = 0.204 ;
+        dm2_pose.position.z = 0.210 ;
         tf2::Quaternion dm_q2;
         dm_q2.setRPY(0, 0, 0);
         dm2_pose.orientation = tf2::toMsg(dm_q2);
@@ -1219,6 +1219,10 @@ int main(int argc, char** argv)
         bool dm_success = false;
         dm_success = move_group_interface.attachObject("dummy_tsumiki");
         RCLCPP_INFO(node->get_logger(), "attached object: %s", "dummy_tsumiki");
+
+        RCLCPP_INFO(node->get_logger(), "before 2sec");
+        rclcpp::sleep_for(2s);
+        RCLCPP_INFO(node->get_logger(), "after 2sec");
 
         // アプローチ用のターゲットBに移動（通常のプランニング）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(4) + ".yaml";
@@ -1236,13 +1240,17 @@ int main(int argc, char** argv)
            plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
         }
 
-        RCLCPP_INFO(node->get_logger(), "before 3sec");
-        rclcpp::sleep_for(3s);
-        RCLCPP_INFO(node->get_logger(), "after 3sec");
+        RCLCPP_INFO(node->get_logger(), "before 1sec");
+        rclcpp::sleep_for(1s);
+        RCLCPP_INFO(node->get_logger(), "after 1sec");
 
         dm_success = move_group_interface.detachObject("dummy_tsumiki");
         planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
         RCLCPP_INFO(node->get_logger(), "dettached object: %s", "dummy_tsumiki");
+
+        RCLCPP_INFO(node->get_logger(), "before 2sec");
+        rclcpp::sleep_for(2s);
+        RCLCPP_INFO(node->get_logger(), "after 2sec");
 
 
         /// Place時の直線移動をなくしてみる
@@ -1479,7 +1487,7 @@ int main(int argc, char** argv)
         geometry_msgs::msg::Pose pr2_pose;
         pr2_pose.position.x = 0;
         pr2_pose.position.y = -0.044;
-        pr2_pose.position.z = 0.204 ;
+        pr2_pose.position.z = 0.210 ;
         tf2::Quaternion pr2_q;
         pr2_q.setRPY(0, 0, 0);
         pr2_pose.orientation = tf2::toMsg(pr2_q);
@@ -1524,6 +1532,10 @@ int main(int argc, char** argv)
 
         // 変更したCollision Objectを更新する
         planning_scene_interface.applyCollisionObject(collision_object);
+
+        RCLCPP_INFO(node->get_logger(), "before 0.5sec");
+        rclcpp::sleep_for(std::chrono::milliseconds(500));
+        RCLCPP_INFO(node->get_logger(), "after 0.5sec");
 
       }
     

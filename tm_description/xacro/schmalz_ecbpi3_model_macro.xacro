@@ -43,8 +43,13 @@
           <cylinder radius="0.025" length="0.08"/>
         </geometry>
       </collision>      
+      <collision>
+        <origin xyz="0.07 0 0.01" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.04" length="0.1"/>
+        </geometry>
+      </collision>      
     </link>
-
     <joint name="${parent_link}_to_ecbpi_joint" type="fixed">
       <parent link="${parent_link}"/>
       <child link="ecbpi_base"/>
