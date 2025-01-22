@@ -44,7 +44,8 @@ int main(int argc, char **argv)
   rclcpp::Client<tm_msgs::srv::SendScript>::SharedPtr client =
     node->create_client<tm_msgs::srv::SendScript>("send_script");
   
-  std::string cmd = "PTP(\"JPP\",0,0,90,0,90,0,35,200,0,false)";
+  //std::string cmd = "PTP(\"JPP\",0,0,90,0,90,0,35,200,0,false)";
+  std::string cmd = "Vision_DoJob(rospt2)";
   
   send_cmd(cmd, node, client);
 

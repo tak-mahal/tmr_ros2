@@ -126,7 +126,7 @@ geometry_msgs::msg::Pose loadTargetPoseFromYAML(const std::string& filename)
     return pose;
 }
 
-void set_io(rclcpp::Node::SharedPtr node, int8_t module, int8_t type, int8_t pin, float state) {
+bool set_io(rclcpp::Node::SharedPtr node, int8_t module, int8_t type, int8_t pin, float state) {
   RCLCPP_INFO(node->get_logger(), "before set request");
   auto client = node->create_client<tm_msgs::srv::SetIO>("set_io");
   auto request = std::make_shared<tm_msgs::srv::SetIO::Request>();
@@ -137,7 +137,7 @@ void set_io(rclcpp::Node::SharedPtr node, int8_t module, int8_t type, int8_t pin
 
   if (!client->wait_for_service(std::chrono::seconds(10))) {
     RCLCPP_ERROR(node->get_logger(), "Service not available");
-    return;
+    return false;
   }
 
   auto result = client->async_send_request(request);
@@ -150,13 +150,17 @@ void set_io(rclcpp::Node::SharedPtr node, int8_t module, int8_t type, int8_t pin
   if (result.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) {
     if (result.get()->ok) {
       RCLCPP_INFO(node->get_logger(), "IO set successfully");
+      return true;
     } else {
       RCLCPP_WARN(node->get_logger(), "Failed to set IO");
+      return false;
     }
   } else {
     RCLCPP_ERROR(node->get_logger(), "Failed to call service");
+    return false;
   }
   RCLCPP_INFO(node->get_logger(), "end function");
+  return false;
 }
 
 int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::string& item, int wait_time) {
@@ -1090,7 +1094,16 @@ int main(int argc, char** argv)
         // つかむ
         // 1秒待機
         if (!simulation_mode){
-            set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
+            
+            bool is_success = false;
+            while (!is_success){
+                is_success = set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
+
+                RCLCPP_INFO(node->get_logger(), "before millisec");
+                rclcpp::sleep_for(std::chrono::milliseconds(500));
+                RCLCPP_INFO(node->get_logger(), "after millisec");
+                
+            }
             RCLCPP_INFO(node->get_logger(), "before ask");
             //rclcpp::sleep_for(1s);
             int tsumiki_on = ask_item(ask_node, "demo", "End_DI0", 1);
@@ -1432,7 +1445,14 @@ int main(int argc, char** argv)
         // 離す
 
         if (!simulation_mode) {
-           set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
+           
+           bool is_success = false;
+           while(!is_success){
+               is_success = set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
+               RCLCPP_INFO(node->get_logger(), "before millisec");
+               rclcpp::sleep_for(std::chrono::milliseconds(500));
+               RCLCPP_INFO(node->get_logger(), "after millisec");
+           }
            rclcpp::sleep_for(1s);
 
         }
