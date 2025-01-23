@@ -282,8 +282,8 @@ int main(int argc, char** argv)
   const bool simulation_mode = false;
   const bool use_file = false;
   // マシンに合わせてパスを変更する
-  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -322,7 +322,7 @@ int main(int argc, char** argv)
   bpl.pose = pose;
   planning_scene_interface.applyCollisionObject(bpl);
   move_group_interface.setSupportSurfaceName("base_plate");
-
+  /*
   // add wall plate to planning scene
   moveit_msgs::msg::CollisionObject wall;
   wall.id = "wall_plate";
@@ -332,7 +332,7 @@ int main(int argc, char** argv)
   wall.primitives[0].dimensions = { 0.015, 2.0, 2.0 };
 
   geometry_msgs::msg::Pose wpose;
-  wpose.position.x = 1.2;
+  wpose.position.x = 1.1;
   wpose.position.y = 0.0;
   wpose.position.z = 1.0 ;
   tf2::Quaternion wq;
@@ -340,7 +340,41 @@ int main(int argc, char** argv)
   wpose.orientation = tf2::toMsg(wq);
   wall.pose = wpose;
   planning_scene_interface.applyCollisionObject(wall);
+  */
   //move_group_interface.setSupportSurfaceName("wall_plate");
+  // add walls to planning scene
+  std::ifstream file_wall(base_folder + "walls.csv");
+  std::string line_wall;
+  int wi = 0;
+  while (std::getline(file_wall, line_wall)) {
+    std::stringstream ss_pose(line_wall);
+    std::string value_pose;
+    std::vector<double> pose_values;
+
+    while (std::getline(ss_pose, value_pose, ',')) {
+      pose_values.push_back(std::stod(value_pose));
+    }
+
+    moveit_msgs::msg::CollisionObject object;
+    object.id = "wall_" + std::to_string(wi) ;
+    object.header.frame_id = "base";
+    object.primitives.resize(1);
+    object.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
+    object.primitives[0].dimensions = { 0.6, 1.0, 0.015};
+
+    geometry_msgs::msg::Pose pose;
+    pose.position.x = pose_values[0];
+    pose.position.y = pose_values[1];
+    pose.position.z = pose_values[2];
+    tf2::Quaternion q;
+    q.setRPY(pose_values[3], pose_values[4], pose_values[5]);
+    pose.orientation = tf2::toMsg(q);
+    object.pose = pose;
+    planning_scene_interface.applyCollisionObject(object);
+
+    wi++;
+
+  }
 
 
   // add pump rubber cylinder
