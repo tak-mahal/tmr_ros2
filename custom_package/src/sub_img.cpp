@@ -17,6 +17,8 @@ class SubImg : public rclcpp::Node {
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr imageSubscription;
     const std::string packageName = "custom_package";
     const std::string imageFileRelative = "/image/techman_robot.jpg";
+    // 画像を保存するディレクトリの指定
+
     bool isShowPic;
     void get_new_image_callback(sensor_msgs::msg::Image::SharedPtr msg);
     void show_image();
@@ -61,6 +63,15 @@ void SubImg::get_new_image_callback(sensor_msgs::msg::Image::SharedPtr msg){
     std::cout << "Height: " << frame.size().height << std::endl;
     frame.copyTo(this->image);
     std::cout<<"after set this->image = frame";
+  
+    // 画像を保存
+    std::string save_path_jpg = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/custom_package/image/tsumiki.jpg";
+    std::string save_path_png = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/custom_package/image/tsumiki.png";
+    cv::imwrite(save_path_jpg, frame);
+    cv::imwrite(save_path_png, frame);
+  
+    std::cout << "Images saved as tsumiki.jpg and tsumiki.png" << std::endl;  
+
   }
   catch(std::runtime_error &exception){
     std::cout<<"there is a exception "<< exception.what()<< std::endl;

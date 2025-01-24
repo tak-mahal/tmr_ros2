@@ -39,6 +39,7 @@
 //#include "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/install/tm_msgs/include/tm_msgs/tm_msgs/srv/set_io.hpp"
 #include "tm_msgs/srv/set_io.hpp"
 #include "tm_msgs/srv/ask_item.hpp"
+#include "tm_msgs/srv/send_script.hpp"
 #include <yaml-cpp/yaml.h>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <chrono>
@@ -217,6 +218,44 @@ int ask_item(rclcpp::Node::SharedPtr node, const std::string& id, const std::str
   }
 }
 
+bool send_cmd(std::string cmd, std::shared_ptr<rclcpp::Node> node, rclcpp::Client<tm_msgs::srv::SendScript>::SharedPtr client){
+  auto request = std::make_shared<tm_msgs::srv::SendScript::Request>();
+  request->id = "vijonjob";
+  request->script = cmd;
+
+  while (!client->wait_for_service(1s)) {
+    if (!rclcpp::ok()) {
+      RCLCPP_ERROR_STREAM(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
+      return false;
+    }
+    RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
+  }
+
+  auto result = client->async_send_request(request);
+  // Wait for the result.
+
+  //while (rclcpp::ok() && result.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+  //  rclcpp::spin_some(node);
+  //}
+
+  if (result.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready) //{
+
+  //if (rclcpp::spin_until_future_complete(node, result) ==
+  //  rclcpp::FutureReturnCode::SUCCESS)
+  {
+    if(result.get()->ok){
+      RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"),"OK");
+      return true;
+    } else{
+      RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"),"not OK");
+      return false;
+    }
+  } else {
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("rclcpp"), "Failed to call service");
+    return false;
+  }
+  return true;
+}
 
 void moveToPosition(const std::vector<double>& positions, moveit::planning_interface::MoveGroupInterface& move_group) {
     moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
@@ -281,6 +320,7 @@ int main(int argc, char** argv)
   // シミュレーションモードか実行モードかを指定
   const bool simulation_mode = false;
   const bool use_file = false;
+  const bool vision_mode = true;
   // マシンに合わせてパスを変更する
   std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
   //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
@@ -296,6 +336,10 @@ int main(int argc, char** argv)
 
   auto ask_node = std::make_shared<rclcpp::Node>("ask_item_client");
   auto set_node = std::make_shared<rclcpp::Node>("set_io_client");
+  auto vj_node = std::make_shared<rclcpp::Node>("send_job_script");
+  rclcpp::Client<tm_msgs::srv::SendScript>::SharedPtr vj_client =
+    node->create_client<tm_msgs::srv::SendScript>("send_script");
+  std::string vj_cmd = "Vision_DoJob(kyouyou)";
 
   static const std::string PLANNING_GROUP = "tmr_arm";
 
@@ -673,6 +717,24 @@ int main(int argc, char** argv)
       geometry_msgs::msg::PoseStamped place_approach_pose_msg = place_pose_msg;
       place_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
 
+      // vj_pose_msgの定義
+      geometry_msgs::msg::PoseStamped vj_pose_msg = pick_approach_pose_msg;
+      // y方向に0.075m（75mm）移動
+      //vj_pose_msg.pose.position.y += 0.075;
+
+      tf2::Quaternion vj_app;
+      tf2::fromMsg(vj_pose_msg.pose.orientation, vj_app);
+      tf2::Quaternion vj_rot_app;
+      vj_rot_app.setRPY(0, 0, 0); //回転しない
+      vj_app = vj_app * vj_rot_app;
+      vj_pose_msg.pose.orientation = tf2::toMsg(vj_app);
+
+      tf2::Vector3 translation_vector(0, -0.075-0.044, 0);
+      tf2::Transform transform(vj_app, tf2::Vector3(0, 0, 0));
+      tf2::Vector3 rotated_translation = transform * translation_vector;
+      vj_pose_msg.pose.position.x += rotated_translation.x();
+      vj_pose_msg.pose.position.y += rotated_translation.y();
+      vj_pose_msg.pose.position.z += rotated_translation.z();
       //pick_pose_msg.pose.position.z += -195;
       //place_pose_msg.pose.position.z += -195;
       //pick_pose_msg.pose.position.x += 0.044;
@@ -931,12 +993,59 @@ int main(int argc, char** argv)
             auto plan = loadPlanFromYAML(plan_path);
             move_group_interface.execute(plan);
         } else {
+            if (vision_mode){
+
+                geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                bool pv_success = plan_and_execute_try_all(vj_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
+
+                if (!pv_success){
+                    geometry_msgs::msg::PoseStamped new_vj_pose = vj_pose_msg;
+    
+                    // オリエンテーションをZ軸に180度回転
+                    tf2::Quaternion q_app;
+                    tf2::fromMsg(new_vj_pose.pose.orientation, q_app);
+                    tf2::Quaternion q_rot_app;
+                    q_rot_app.setRPY(0, 0, M_PI); // Z軸に180度回転
+                    q_app = q_app * q_rot_app;
+                    new_vj_pose.pose.orientation = tf2::toMsg(q_app);
+    
+                    // 元の座標系のY方向に-0.075移動
+                    tf2::Vector3 translation_vector(0, 0.15, 0);
+                    tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
+                    tf2::Vector3 rotated_translation = transform * translation_vector;
+                    new_vj_pose.pose.position.x += rotated_translation.x();
+                    new_vj_pose.pose.position.y += rotated_translation.y();
+                    new_vj_pose.pose.position.z += rotated_translation.z();
+
+                    geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+                    pv_success = plan_and_execute_try_all(new_vj_pose, current_pose, false, index, 1, plan_path, pose_path);
+                }
+
+                // VisionJobの実行
+                if (pv_success){
+
+                    bool vj_success = send_cmd(vj_cmd, vj_node, vj_client);
+ 
+                    if (vj_success){
+
+                        RCLCPP_INFO(node->get_logger(), "vj_success");
+                    } else {
+                        RCLCPP_INFO(node->get_logger(), "vj_failed");
+                    }
+                } else {
+                        RCLCPP_INFO(node->get_logger(), "approach to vision job failed. vision job cancelled");
+                }
+                RCLCPP_INFO(node->get_logger(), "before 1sec");
+                rclcpp::sleep_for(1s);
+                RCLCPP_INFO(node->get_logger(), "after 1sec");
+            }
+
+
             //plan_and_execute(pick_approach_pose_msg, false, index, 1, plan_path, pose_path);
             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
             bool pe1_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
         }
         // 衝突回避用先端ゴムをデタッチ
-
         RCLCPP_INFO(node->get_logger(), "before 3sec");
         rclcpp::sleep_for(3s);
         RCLCPP_INFO(node->get_logger(), "after 3sec");
