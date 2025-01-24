@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     node->create_client<tm_msgs::srv::SendScript>("send_script");
   
   //std::string cmd = "PTP(\"JPP\",0,0,90,0,90,0,35,200,0,false)";
-  std::string cmd = "Vision_DoJob(rospt2)";
+  std::string cmd = "Vision_DoJob(jetsonnonece)";
   
   send_cmd(cmd, node, client);
 

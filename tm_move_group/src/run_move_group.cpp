@@ -282,8 +282,8 @@ int main(int argc, char** argv)
   const bool simulation_mode = false;
   const bool use_file = false;
   // マシンに合わせてパスを変更する
-  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -343,6 +343,7 @@ int main(int argc, char** argv)
   */
   //move_group_interface.setSupportSurfaceName("wall_plate");
   // add walls to planning scene
+  /*
   std::ifstream file_wall(base_folder + "walls.csv");
   std::string line_wall;
   int wi = 0;
@@ -375,7 +376,7 @@ int main(int argc, char** argv)
     wi++;
 
   }
-
+  */
 
   // add pump rubber cylinder
   moveit_msgs::msg::CollisionObject pr;
