@@ -9,6 +9,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
+add_compile_options(-g)
 
 # Please refer to https://moveit.ros.org/install-moveit2/source
 # If the MoveIt2 module is not ready for installation, or the user wants to close the relative MoveIt2 module, the user can modify the "true" of moveit2_lib_auto_judge to "false" to compile. 
@@ -34,6 +35,7 @@ find_package(rclcpp REQUIRED)
 find_package(tm_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(moveit_servo REQUIRED)
+find_package(OpenCV REQUIRED)
 
 if (moveit2_lib_auto_judge) 
 if ( NOT moveit_ros_planning_interface_FOUND)
@@ -56,6 +58,7 @@ if (moveit_ros_planning_interface_FOUND)
     tm_msgs
     moveit_servo
     "yaml-cpp"
+    "OpenCV"
   )
 
   target_link_libraries(run_move_group yaml-cpp)

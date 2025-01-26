@@ -144,6 +144,7 @@ def generate_launch_description():
             planning_scene_monitor_parameters,
             joint_limits_yaml,
         ],
+        #prefix=['xterm -e gdb -ex run --args']  #prefix=['gdbserver localhost:3000']
     )
 
     # RViz configuration
@@ -187,7 +188,9 @@ def generate_launch_description():
         executable='tm_driver',
         # name='tm_driver',
         output='screen',
-        arguments=args
+        arguments=args,
+        #prefix=['xterm -e gdb -ex run --args']  #prefix=['gdbserver localhost:3000']
+        #prefix=['gdbserver localhost:3000']
     )
 
     return LaunchDescription([tm_driver_node, rviz_node, static_tf, robot_state_publisher, run_move_group_node])

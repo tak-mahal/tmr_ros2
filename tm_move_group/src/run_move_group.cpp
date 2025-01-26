@@ -44,8 +44,197 @@
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <chrono>
 #include <moveit/robot_state/robot_state.h>
+#include <opencv2/opencv.hpp>
 
 using namespace std::chrono_literals;
+
+cv::Mat rotateImage(const cv::Mat &src, double angle) {
+    cv::Point2f center(src.cols / 2.0F, src.rows / 2.0F);
+    cv::Mat rotMat = cv::getRotationMatrix2D(center, angle, 1.0);
+    cv::Mat dst;
+    cv::warpAffine(src, dst, rotMat, src.size());
+    return dst;
+}
+
+// テンプレート画像を指定したスケールで拡大する関数
+cv::Mat scaleImage(const cv::Mat &src, double scale) {
+    cv::Mat dst;
+    cv::resize(src, dst, cv::Size(), scale, scale);
+    return dst;
+}
+
+// 中心からのずれと回転を考慮して新しいPoseを計算する関数
+geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path, const std::string& template_path, const geometry_msgs::msg::PoseStamped& initial_pose) {
+    const double REAL_WIDTH = 108.0;
+    const double REAL_HEIGHT = 36.0;
+
+    cv::Mat image = cv::imread(image_path);
+    if (image.empty()) {
+        std::cerr << "画像を読み込めませんでした。" << std::endl;
+        return initial_pose;
+    }
+    cv::Mat gray;
+    cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+
+    cv::Mat edges;
+    cv::Canny(gray, edges, 1, 50, 3, true);
+    cv::Mat gray_morph, gray_black;
+    cv::Mat kernel_x = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::morphologyEx(gray, gray_morph, cv::MORPH_GRADIENT, kernel_x, cv::Point(-1, -1), 6);
+    cv::morphologyEx(gray_morph, gray_black, cv::MORPH_CLOSE, kernel_x, cv::Point(-1, -1), 1);
+
+    cv::Mat invertedMorph;
+    cv::bitwise_not(gray_morph, invertedMorph);
+
+    int whiteBorderThickness = 200; // 白い縁取りの幅
+
+    for (int i = 0; i < whiteBorderThickness; ++i) {
+        invertedMorph.row(i).setTo(255);
+        invertedMorph.row(image.rows - 1 - i).setTo(255);
+    }
+
+    for (int i = 0; i < whiteBorderThickness; ++i) {
+        invertedMorph.col(i).setTo(255);
+        invertedMorph.col(image.cols - 1 - i).setTo(255);
+    }
+
+    cv::Mat templateImg = cv::imread(template_path, cv::IMREAD_GRAYSCALE);
+
+    int rangeWidth = image.cols - 400;
+    int rangeHeight = image.rows - 900;
+    cv::Rect searchArea((image.cols - rangeWidth) / 2, (image.rows - rangeHeight) / 2, rangeWidth, rangeHeight);
+    cv::Mat searchImage = invertedMorph(searchArea);
+
+    double bestMatchValue = -1;
+    cv::Point bestMatchLocation;
+    double bestRotationAngle = 0;
+    double bestScale = 1.0;
+
+    double scaleIncrement = 0.01;
+    double maxScale = 1.05;
+    double angleIncrement = 0.5; // 角度の刻みを0.5度に設定
+
+    double templateWidthInPixels = static_cast<double>(templateImg.cols);
+    double pixelsPerMm = templateWidthInPixels / REAL_WIDTH; // 1mmあたりのピクセル数
+
+    for (double scale = 1.0; scale <= maxScale; scale += scaleIncrement) {
+        cv::Mat scaledTemplate = scaleImage(templateImg, scale);
+
+        for (double angle = -5; angle <= 5; angle += angleIncrement) {
+            cv::Mat rotatedTemplate = rotateImage(scaledTemplate, angle);
+
+            if (rotatedTemplate.cols > searchImage.cols || rotatedTemplate.rows > searchImage.rows) {
+                continue;
+            }
+
+            cv::Mat result;
+            cv::matchTemplate(searchImage, rotatedTemplate, result, cv::TM_CCOEFF_NORMED);
+
+            double minVal, maxVal;
+            cv::Point minLoc, maxLoc;
+            cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+
+            if (maxVal > bestMatchValue) {
+                bestMatchValue = maxVal;
+                bestMatchLocation = maxLoc;
+                bestRotationAngle = angle;
+                bestScale = scale;
+            }
+        }
+    }
+
+    cv::Point matchCenter(
+        bestMatchLocation.x + static_cast<int>(templateImg.cols * bestScale / 2),
+        bestMatchLocation.y + static_cast<int>(templateImg.rows * bestScale / 2)
+    );
+
+    cv::Point imageCenter(searchImage.cols / 2, searchImage.rows / 2);
+    cv::Point offset = matchCenter - imageCenter;
+
+    double offsetXmm = offset.x / pixelsPerMm;
+    double offsetYmm = offset.y / pixelsPerMm;
+
+    // 結果を出力
+    std::cout << "Best match value: " << bestMatchValue << std::endl;
+    std::cout << "Best rotation angle: " << bestRotationAngle << " degrees" << std::endl;
+    std::cout << "Best scale: " << bestScale << std::endl;
+    std::cout << "Offset from image center: (" << offsetXmm << " mm, " << offsetYmm << " mm)" << std::endl;
+    /*
+    // 回転行列を使用してテンプレートの四隅を計算
+    cv::Mat rotMat = cv::getRotationMatrix2D(cv::Point2f(0, 0), bestRotationAngle, bestScale);
+    std::vector<cv::Point2f> corners = {
+        cv::Point2f(0, 0),
+        cv::Point2f(static_cast<float>(templateImg.cols), 0),
+        cv::Point2f(static_cast<float>(templateImg.cols), static_cast<float>(templateImg.rows)), 
+        cv::Point2f(0, static_cast<float>(templateImg.rows))
+    };
+    cv::transform(corners, corners, rotMat);
+
+    // マッチング位置を画像上に描画
+    for (auto &corner : corners) {
+        corner += cv::Point2f(static_cast<float>(bestMatchLocation.x), static_cast<float>(bestMatchLocation.y));
+    }
+    for (int i = 0; i < 4; ++i) {
+        cv::line(searchImage, corners[i], corners[(i + 1) % 4], cv::Scalar(0), 2);
+    }
+
+    // 画像を表示
+    cv::Mat image_small;
+    cv::resize(searchImage, image_small, cv::Size(searchImage.cols / 2, searchImage.rows / 2));
+    //cv::imshow("invertedMorph", invertedMorph_small);
+
+    cv::imshow("Image with Best Match", image_small);
+    // キーが押されるまで待機
+    cv::waitKey(0);
+    */
+
+    if (bestMatchValue < 0.6){
+        return initial_pose;
+    } else {
+
+
+        // 新しいポーズを計算
+        geometry_msgs::msg::PoseStamped new_pose = initial_pose;
+
+        // オリエンテーションをZ軸に180度回転
+        tf2::Quaternion q_app;
+        tf2::fromMsg(new_pose.pose.orientation, q_app);
+        tf2::Quaternion q_rot_app;
+        q_rot_app.setRPY(0, 0, -bestRotationAngle * M_PI / 180.0); // Z軸に180度回転
+        q_app = q_app * q_rot_app;
+        new_pose.pose.orientation = tf2::toMsg(q_app);
+    
+        // 元の座標系に基づいて移動
+        tf2::Vector3 translation_vector(-offsetXmm / 1000.0, -offsetYmm / 1000.0, 0);
+        tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
+        tf2::Vector3 rotated_translation = transform * translation_vector;
+        new_pose.pose.position.x += rotated_translation.x();
+        new_pose.pose.position.y += rotated_translation.y();
+        new_pose.pose.position.z += rotated_translation.z();
+
+        return new_pose;
+        /*
+        new_pose.pose.position.x += offsetXmm / 1000.0; // mmをmに変換
+        new_pose.pose.position.y += offsetYmm / 1000.0;
+
+        // 元の姿勢のクォータニオンを取得
+        tf2::Quaternion original_quat;
+        tf2::fromMsg(initial_pose.pose.orientation, original_quat);
+
+        // 追加の回転（Z軸周りの回転）を計算
+        tf2::Quaternion additional_rotation;
+        additional_rotation.setRPY(0, 0, bestRotationAngle * M_PI / 180.0);
+
+        // 元の姿勢に追加の回転を適用
+        tf2::Quaternion new_orientation = original_quat * additional_rotation;
+        new_orientation.normalize();
+
+        // 新しい姿勢のクォータニオンを設定
+        new_pose.pose.orientation = tf2::toMsg(new_orientation);
+        */
+    }
+
+}
 
 void savePlanToYAML(const moveit::planning_interface::MoveGroupInterface::Plan& plan, const std::string& filename)
 {
@@ -318,12 +507,15 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = false;
+  const bool simulation_mode = true;
   const bool use_file = false;
   const bool vision_mode = true;
   // マシンに合わせてパスを変更する
-  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  //std::string image_file = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/custom_package/image/tsumiki.jpg";
+  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  std::string image_file = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/custom_package/image/tsumiki.jpg";
+  std::string template_file = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/custom_package/image/white_template.jpg";
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -387,7 +579,7 @@ int main(int argc, char** argv)
   */
   //move_group_interface.setSupportSurfaceName("wall_plate");
   // add walls to planning scene
-  /*
+  
   std::ifstream file_wall(base_folder + "walls.csv");
   std::string line_wall;
   int wi = 0;
@@ -420,7 +612,7 @@ int main(int argc, char** argv)
     wi++;
 
   }
-  */
+  
 
   // add pump rubber cylinder
   moveit_msgs::msg::CollisionObject pr;
@@ -460,6 +652,7 @@ int main(int argc, char** argv)
 
 
   // add tenkei to planning scene
+  
   std::ifstream file_tenkei(base_folder + "tenkei.csv");
   std::string line_tenkei;
   int ti = 0;
@@ -492,7 +685,7 @@ int main(int argc, char** argv)
     ti++;
 
   }
-
+  
   // add tsumikis to planning scene
   std::ifstream file_pose(base_folder + "poses.csv");
   std::ifstream file_place_ini(base_folder + "place.csv");
@@ -725,11 +918,11 @@ int main(int argc, char** argv)
       tf2::Quaternion vj_app;
       tf2::fromMsg(vj_pose_msg.pose.orientation, vj_app);
       tf2::Quaternion vj_rot_app;
-      vj_rot_app.setRPY(0, 0, 0); //回転しない
+      vj_rot_app.setRPY(0, 0, M_PI); //回転しない
       vj_app = vj_app * vj_rot_app;
       vj_pose_msg.pose.orientation = tf2::toMsg(vj_app);
 
-      tf2::Vector3 translation_vector(0, -0.075-0.044, 0);
+      tf2::Vector3 translation_vector(0, -0.075+0.044, 0);
       tf2::Transform transform(vj_app, tf2::Vector3(0, 0, 0));
       tf2::Vector3 rotated_translation = transform * translation_vector;
       vj_pose_msg.pose.position.x += rotated_translation.x();
@@ -754,7 +947,7 @@ int main(int argc, char** argv)
           "TRRTkConfigDefault",
           "PRMkConfigDefault",
           "PRMstarkConfigDefault",
-          "FMTkConfigDefault",
+          //"FMTkConfigDefault",
           "BFMTkConfigDefault",
           "PDSTkConfigDefault",
           "STRIDEkConfigDefault",
@@ -766,6 +959,78 @@ int main(int argc, char** argv)
           "LazyPRMstarkConfigDefault",
           "SPARSkConfigDefault",
           "SPARStwokConfigDefault"
+        };
+        
+        move_group_interface.setPoseTarget(pose, "flange");
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        bool success;
+
+        if (cartesian) {
+          moveit_msgs::msg::RobotTrajectory trajectory;
+          success = (move_group_interface.computeCartesianPath(
+                      {pose.pose}, 0.01, 0.0, trajectory, true) >= 0.95);
+
+          if (success) {
+            plan.trajectory_ = trajectory;
+
+          } else{
+              std::vector<geometry_msgs::msg::Pose> pose_list;
+              for (int i = 2; i <= 10; ++i) {
+                  for (int j = 1; j < i; ++j) {
+                      geometry_msgs::msg::PoseStamped new_pose = current_pose;
+                      new_pose.pose.position.z -= j * ((current_pose.pose.position.z - pose.pose.position.z) / i);
+                      pose_list.push_back(new_pose.pose);
+                  }
+                  pose_list.push_back(pose.pose);
+                  success = (move_group_interface.computeCartesianPath(
+                      pose_list, 0.01, 0.0, trajectory, true) >= 0.95);
+
+                  if (success){
+                      break;
+                  }
+              }
+          }
+        } else {
+
+            for (const auto& planner : planners) {
+              move_group_interface.setPlannerId(planner);
+              RCLCPP_INFO(node->get_logger(), "Trying planner: %s", planner.c_str());
+
+              success = (move_group_interface.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+              if (success) {
+                  RCLCPP_INFO(node->get_logger(), "Planning succeeded with planner: %s", planner.c_str());
+                  break; // 成功したらループを抜ける
+              } else {
+                  RCLCPP_WARN(node->get_logger(), "Planning failed with planner: %s", planner.c_str());
+              }
+            }
+
+        }
+
+
+        if (!success) {
+            RCLCPP_ERROR(node->get_logger(), "Planning failed with all planners. id: %d - %d", indices1, indices2);
+            return false;
+        } else {
+            bool exec_success = (move_group_interface.execute(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+            savePlanToYAML(plan, plan_file);
+            saveTargetPoseToYAML(pose.pose, pose_file);
+            RCLCPP_INFO(node->get_logger(), "plan and pose saved for id: %d - %d", indices1, indices2);
+            if (simulation_mode){
+
+                return true;
+            } else {
+                return true;
+            }
+        }
+
+      };
+
+      auto plan_and_execute_single = [&](const geometry_msgs::msg::PoseStamped& pose, const geometry_msgs::msg::PoseStamped& current_pose, bool cartesian, int indices1, int indices2, std::string plan_file, std::string pose_file) {
+        // プランナーのリストを定義
+        std::vector<std::string> planners = {
+          "RRTConnectkConfigDefault"
         };
         
         move_group_interface.setPoseTarget(pose, "flange");
@@ -896,7 +1161,7 @@ int main(int argc, char** argv)
             //mixed_constraints.orientation_constraints.emplace_back(orientation_constraint);
             mixed_constraints.position_constraints.emplace_back(line_constraint);
             move_group_interface.setPathConstraints(mixed_constraints);
-            move_group_interface.setPlanningTime(10.0);
+            move_group_interface.setPlanningTime(5.0);
             //moveit_msgs::msg::Constraints orientation_constraints;
             //orientation_constraints.orientation_constraints.emplace_back(orientation_constraint);
             
@@ -995,10 +1260,13 @@ int main(int argc, char** argv)
         } else {
             if (vision_mode){
 
+                RCLCPP_INFO(node->get_logger(), "vision approach %d - %d", index, 1);
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
-                bool pv_success = plan_and_execute_try_all(vj_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
+                bool pv_success = plan_and_execute_single(vj_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
 
                 if (!pv_success){
+                    
+                    RCLCPP_INFO(node->get_logger(), "vision approach 180 degree rotation %d - %d", index, 1);
                     geometry_msgs::msg::PoseStamped new_vj_pose = vj_pose_msg;
     
                     // オリエンテーションをZ軸に180度回転
@@ -1010,7 +1278,7 @@ int main(int argc, char** argv)
                     new_vj_pose.pose.orientation = tf2::toMsg(q_app);
     
                     // 元の座標系のY方向に-0.075移動
-                    tf2::Vector3 translation_vector(0, 0.15, 0);
+                    tf2::Vector3 translation_vector(0, -0.15, 0);
                     tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
                     tf2::Vector3 rotated_translation = transform * translation_vector;
                     new_vj_pose.pose.position.x += rotated_translation.x();
@@ -1018,28 +1286,41 @@ int main(int argc, char** argv)
                     new_vj_pose.pose.position.z += rotated_translation.z();
 
                     geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
-                    pv_success = plan_and_execute_try_all(new_vj_pose, current_pose, false, index, 1, plan_path, pose_path);
+                    pv_success = plan_and_execute_single(new_vj_pose, current_pose, false, index, 1, plan_path, pose_path);
                 }
 
                 // VisionJobの実行
-                if (pv_success){
+                if (pv_success && !simulation_mode){
 
                     bool vj_success = send_cmd(vj_cmd, vj_node, vj_client);
  
                     if (vj_success){
 
                         RCLCPP_INFO(node->get_logger(), "vj_success");
+
                     } else {
                         RCLCPP_INFO(node->get_logger(), "vj_failed");
                     }
+
+                    RCLCPP_INFO(node->get_logger(), "before 1sec");
+                    rclcpp::sleep_for(1s);
+                    RCLCPP_INFO(node->get_logger(), "after 1sec");
+
+                    //画像から積木のずれを特定
+                    pick_pose_msg = findRectanglePose(image_file, template_file, pick_pose_msg);
+                    pick_approach_pose_msg = pick_pose_msg;
+                    pick_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
+
                 } else {
                         RCLCPP_INFO(node->get_logger(), "approach to vision job failed. vision job cancelled");
                 }
-                RCLCPP_INFO(node->get_logger(), "before 1sec");
-                rclcpp::sleep_for(1s);
-                RCLCPP_INFO(node->get_logger(), "after 1sec");
-            }
+                // テンプレートマッチング
+                //detectWithTemplateMatching(image_file, template_file);
+                // コーナー検出
+                //detectCorners(image_file);
+                //detectObjects(image_file);
 
+            }
 
             //plan_and_execute(pick_approach_pose_msg, false, index, 1, plan_path, pose_path);
             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
