@@ -45,8 +45,82 @@
 #include <chrono>
 #include <moveit/robot_state/robot_state.h>
 #include <opencv2/opencv.hpp>
+#include "ament_index_cpp/get_package_share_directory.hpp"
+
+//#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Transform.h>
 
 using namespace std::chrono_literals;
+
+geometry_msgs::msg::PoseStamped transformVisionPose(
+    const geometry_msgs::msg::PoseStamped& vision_pose,
+    const geometry_msgs::msg::PoseStamped& initial_pose,
+    double offsetXmm, double offsetYmm, double bestRotationAngle)
+{
+    // vision_poseの回転と移動
+    tf2::Quaternion q_vision;
+    tf2::fromMsg(vision_pose.pose.orientation, q_vision);
+
+    // Z軸に回転
+    tf2::Quaternion q_rot_app;
+    q_rot_app.setRPY(0, 0, -bestRotationAngle * M_PI / 180.0);
+
+    // 回転を適用
+    tf2::Quaternion q_app = q_vision * q_rot_app;
+    q_app.normalize();
+
+    // 移動ベクトルをvision_poseのオリエンテーションで回転
+    tf2::Vector3 translation_vector(-offsetXmm / 1000.0, -offsetYmm / 1000.0, 0);
+    tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
+    tf2::Vector3 rotated_translation = transform * translation_vector;
+
+    // 新しいvision_poseの計算
+    geometry_msgs::msg::PoseStamped transformed_vision_pose = vision_pose;
+    transformed_vision_pose.pose.orientation = tf2::toMsg(q_app);
+    transformed_vision_pose.pose.position.x += rotated_translation.x();
+    transformed_vision_pose.pose.position.y += rotated_translation.y();
+    transformed_vision_pose.pose.position.z += rotated_translation.z();
+
+    geometry_msgs::msg::PoseStamped new_pose = transformed_vision_pose;
+    // y方向に0.075m（75mm）移動
+    //vj_pose_msg.pose.position.y += 0.075;
+
+    tf2::Quaternion vj_app;
+    tf2::fromMsg(new_pose.pose.orientation, vj_app);
+    tf2::Quaternion vj_rot_app;
+    vj_rot_app.setRPY(0, 0, M_PI); //回転しない
+    vj_app = vj_app * vj_rot_app;
+    new_pose.pose.orientation = tf2::toMsg(vj_app);
+
+    tf2::Vector3 translation_vector2(0, -0.075+0.044, 0);
+    tf2::Transform transform2(vj_app, tf2::Vector3(0, 0, 0));
+    tf2::Vector3 rotated_translation2 = transform2 * translation_vector2;
+    new_pose.pose.position.x += rotated_translation2.x();
+    new_pose.pose.position.y += rotated_translation2.y();
+    new_pose.pose.position.z += rotated_translation2.z();
+
+    /*
+
+    // initial_poseの座標系に変換
+    tf2::Transform initial_transform;
+    tf2::fromMsg(initial_pose.pose, initial_transform);
+    tf2::Transform vision_transform;
+    tf2::fromMsg(transformed_vision_pose.pose, vision_transform);
+
+    tf2::Transform result_transform = initial_transform * vision_transform;
+
+    // 結果をgeometry_msgs::msg::Poseに変換
+    geometry_msgs::msg::PoseStamped new_pose;
+    new_pose.header = initial_pose.header;  // 必要に応じて設定
+    new_pose.pose.position.x = result_transform.getOrigin().x();
+    new_pose.pose.position.y = result_transform.getOrigin().y();
+    new_pose.pose.position.z = result_transform.getOrigin().z();
+    new_pose.pose.orientation = tf2::toMsg(result_transform.getRotation());
+    */
+    return new_pose;
+    //return vision_pose;
+}
 
 cv::Mat rotateImage(const cv::Mat &src, double angle) {
     cv::Point2f center(src.cols / 2.0F, src.rows / 2.0F);
@@ -64,7 +138,7 @@ cv::Mat scaleImage(const cv::Mat &src, double scale) {
 }
 
 // 中心からのずれと回転を考慮して新しいPoseを計算する関数
-geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path, const std::string& template_path, const geometry_msgs::msg::PoseStamped& initial_pose) {
+geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path, const std::string& template_path, const std::string& result_path, const geometry_msgs::msg::PoseStamped& initial_pose, const geometry_msgs::msg::PoseStamped& vision_pose) {
     const double REAL_WIDTH = 108.0;
     const double REAL_HEIGHT = 36.0;
 
@@ -159,7 +233,19 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
     std::cout << "Best rotation angle: " << bestRotationAngle << " degrees" << std::endl;
     std::cout << "Best scale: " << bestScale << std::endl;
     std::cout << "Offset from image center: (" << offsetXmm << " mm, " << offsetYmm << " mm)" << std::endl;
-    /*
+
+    // テキスト情報を準備
+    std::string text1 = "Best match value: " + std::to_string(bestMatchValue);
+    std::string text2 = "Best rotation angle: " + std::to_string(bestRotationAngle) + " degrees";
+    std::string text3 = "Best scale: " + std::to_string(bestScale);
+    std::string text4 = "Offset: (" + std::to_string(offsetXmm) + " mm, " + std::to_string(offsetYmm) + " mm)";
+
+    // テキストを画像上に描画
+    cv::putText(searchImage, text1, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+    cv::putText(searchImage, text2, cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+    cv::putText(searchImage, text3, cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+    cv::putText(searchImage, text4, cv::Point(10, 90), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+
     // 回転行列を使用してテンプレートの四隅を計算
     cv::Mat rotMat = cv::getRotationMatrix2D(cv::Point2f(0, 0), bestRotationAngle, bestScale);
     std::vector<cv::Point2f> corners = {
@@ -181,36 +267,44 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
     // 画像を表示
     cv::Mat image_small;
     cv::resize(searchImage, image_small, cv::Size(searchImage.cols / 2, searchImage.rows / 2));
-    //cv::imshow("invertedMorph", invertedMorph_small);
+    //cv::imshow("Image with Best Match", image_small);
 
-    cv::imshow("Image with Best Match", image_small);
-    // キーが押されるまで待機
-    cv::waitKey(0);
-    */
+    // 結果を保存（オプション）
+    cv::imwrite(result_path, image_small);
 
-    if (bestMatchValue < 0.6){
+
+    if (bestMatchValue < 0.0){
         return initial_pose;
     } else {
 
-
+        /*
         // 新しいポーズを計算
         geometry_msgs::msg::PoseStamped new_pose = initial_pose;
 
-        // オリエンテーションをZ軸に180度回転
-        tf2::Quaternion q_app;
-        tf2::fromMsg(new_pose.pose.orientation, q_app);
+        // vision_poseのオリエンテーションを取得
+        tf2::Quaternion q_vision;
+        tf2::fromMsg(vision_pose.pose.orientation, q_vision);
+
+        // Z軸に180度回転
         tf2::Quaternion q_rot_app;
         q_rot_app.setRPY(0, 0, -bestRotationAngle * M_PI / 180.0); // Z軸に180度回転
-        q_app = q_app * q_rot_app;
+
+        // 追加の回転をvision_poseのオリエンテーションに適用
+        tf2::Quaternion q_app = q_vision * q_rot_app;
+        q_app.normalize(); // 正規化しておく
         new_pose.pose.orientation = tf2::toMsg(q_app);
-    
-        // 元の座標系に基づいて移動
+
+        // 移動ベクトルをvision_poseのオリエンテーションで回転
         tf2::Vector3 translation_vector(-offsetXmm / 1000.0, -offsetYmm / 1000.0, 0);
-        tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
+        tf2::Transform transform(q_vision, tf2::Vector3(0, 0, 0));
         tf2::Vector3 rotated_translation = transform * translation_vector;
-        new_pose.pose.position.x += rotated_translation.x();
-        new_pose.pose.position.y += rotated_translation.y();
-        new_pose.pose.position.z += rotated_translation.z();
+
+        // initial_poseの位置を基準に平行移動
+        new_pose.pose.position.x = initial_pose.pose.position.x + rotated_translation.x();
+        new_pose.pose.position.y = initial_pose.pose.position.y + rotated_translation.y();
+        new_pose.pose.position.z = initial_pose.pose.position.z + rotated_translation.z();
+        */
+        geometry_msgs::msg::PoseStamped new_pose = transformVisionPose(vision_pose, initial_pose,  offsetXmm, offsetYmm, bestRotationAngle);
 
         return new_pose;
         /*
@@ -452,7 +546,7 @@ void moveToPosition(const std::vector<double>& positions, moveit::planning_inter
     const moveit::core::JointModelGroup* joint_model_group = move_group.getCurrentState()->getJointModelGroup(move_group.getName());
     move_group.setJointValueTarget(positions);
     moveit::planning_interface::MoveGroupInterface::Plan my_plan;
-    
+
     bool success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
     if (success) {
         move_group.move();
@@ -465,7 +559,7 @@ std::vector<double> readPositionsFromYaml(const std::string& file_path, bool get
     std::ifstream file(file_path);
     YAML::Node yaml_data = YAML::Load(file);
     YAML::Node trajectory = yaml_data["trajectory"];
-    
+
     if (trajectory.IsSequence()) {
         if (get_first) {
             return trajectory[0]["positions"].as<std::vector<double>>();
@@ -507,15 +601,31 @@ int main(int argc, char** argv)
   }
 
   // シミュレーションモードか実行モードかを指定
-  const bool simulation_mode = true;
+  const bool simulation_mode = false;
   const bool use_file = false;
   const bool vision_mode = true;
+
+  //const std::string thisPackageName = "tm_move_group";
+  //const std::string thisFileRelative = "/src/";
+  //const std::string imagePackageName = "custom_package";
+  //const std::string imageFileRelative = "/image/tsumiki.jpg";
+  //const std::string templateFileRelative = "/image/white_template.jpg";
+  //const std::string resultFileRelative = "/image/result.jpg";
+
+  //auto this_base = ament_index_cpp::get_package_share_directory(thisPackageName);
+  //auto image_base = ament_index_cpp::get_package_share_directory(imagePackageName);
+
   // マシンに合わせてパスを変更する
-  //std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
-  //std::string image_file = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/custom_package/image/tsumiki.jpg";
-  std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
-  std::string image_file = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/custom_package/image/tsumiki.jpg";
-  std::string template_file = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/custom_package/image/white_template.jpg";
+  std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
+  std::string image_base = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/custom_package/image/";
+  std::string image_file = image_base + "tsumiki.jpg";
+  std::string template_file = image_base + "white_template.jpg";
+  std::string result_file = image_base + "result.jpg";
+
+  std::cout <<  base_folder << std::endl;
+  std::cout <<  image_file << std::endl;
+  std::cout <<  template_file << std::endl;
+  std::cout <<  result_file << std::endl;
 
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions node_options;
@@ -531,7 +641,7 @@ int main(int argc, char** argv)
   auto vj_node = std::make_shared<rclcpp::Node>("send_job_script");
   rclcpp::Client<tm_msgs::srv::SendScript>::SharedPtr vj_client =
     node->create_client<tm_msgs::srv::SendScript>("send_script");
-  std::string vj_cmd = "Vision_DoJob(kyouyou)";
+  std::string vj_cmd = "Vision_DoJob(kyouyou3)";
 
   static const std::string PLANNING_GROUP = "tmr_arm";
 
@@ -579,7 +689,7 @@ int main(int argc, char** argv)
   */
   //move_group_interface.setSupportSurfaceName("wall_plate");
   // add walls to planning scene
-  
+
   std::ifstream file_wall(base_folder + "walls.csv");
   std::string line_wall;
   int wi = 0;
@@ -612,7 +722,7 @@ int main(int argc, char** argv)
     wi++;
 
   }
-  
+
 
   // add pump rubber cylinder
   moveit_msgs::msg::CollisionObject pr;
@@ -652,7 +762,7 @@ int main(int argc, char** argv)
 
 
   // add tenkei to planning scene
-  
+
   std::ifstream file_tenkei(base_folder + "tenkei.csv");
   std::string line_tenkei;
   int ti = 0;
@@ -685,7 +795,7 @@ int main(int argc, char** argv)
     ti++;
 
   }
-  
+
   // add tsumikis to planning scene
   std::ifstream file_pose(base_folder + "poses.csv");
   std::ifstream file_place_ini(base_folder + "place.csv");
@@ -960,7 +1070,7 @@ int main(int argc, char** argv)
           "SPARSkConfigDefault",
           "SPARStwokConfigDefault"
         };
-        
+  
         move_group_interface.setPoseTarget(pose, "flange");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
@@ -1032,7 +1142,7 @@ int main(int argc, char** argv)
         std::vector<std::string> planners = {
           "RRTConnectkConfigDefault"
         };
-        
+  
         move_group_interface.setPoseTarget(pose, "flange");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
@@ -1126,9 +1236,9 @@ int main(int argc, char** argv)
           "SPARSkConfigDefault",
           "SPARStwokConfigDefault"
         };
-        
+  
         if(cartesian){
-            
+      
             moveit_msgs::msg::OrientationConstraint orientation_constraint;
             orientation_constraint.header.frame_id = move_group_interface.getPoseReferenceFrame();
             orientation_constraint.link_name = "flange";
@@ -1164,7 +1274,7 @@ int main(int argc, char** argv)
             move_group_interface.setPlanningTime(5.0);
             //moveit_msgs::msg::Constraints orientation_constraints;
             //orientation_constraints.orientation_constraints.emplace_back(orientation_constraint);
-            
+      
 
         }
 
@@ -1208,7 +1318,7 @@ int main(int argc, char** argv)
 
 
       RCLCPP_INFO(node->get_logger(), "before planning");
-    
+
       if (index >= number){
 
 
@@ -1258,17 +1368,17 @@ int main(int argc, char** argv)
             auto plan = loadPlanFromYAML(plan_path);
             move_group_interface.execute(plan);
         } else {
-            if (vision_mode){
+            if (vision_mode && index >= 300){
 
                 RCLCPP_INFO(node->get_logger(), "vision approach %d - %d", index, 1);
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                 bool pv_success = plan_and_execute_single(vj_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
 
                 if (!pv_success){
-                    
+              
                     RCLCPP_INFO(node->get_logger(), "vision approach 180 degree rotation %d - %d", index, 1);
                     geometry_msgs::msg::PoseStamped new_vj_pose = vj_pose_msg;
-    
+
                     // オリエンテーションをZ軸に180度回転
                     tf2::Quaternion q_app;
                     tf2::fromMsg(new_vj_pose.pose.orientation, q_app);
@@ -1276,7 +1386,7 @@ int main(int argc, char** argv)
                     q_rot_app.setRPY(0, 0, M_PI); // Z軸に180度回転
                     q_app = q_app * q_rot_app;
                     new_vj_pose.pose.orientation = tf2::toMsg(q_app);
-    
+
                     // 元の座標系のY方向に-0.075移動
                     tf2::Vector3 translation_vector(0, -0.15, 0);
                     tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
@@ -1287,6 +1397,7 @@ int main(int argc, char** argv)
 
                     geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
                     pv_success = plan_and_execute_single(new_vj_pose, current_pose, false, index, 1, plan_path, pose_path);
+                    vj_pose_msg = new_vj_pose;
                 }
 
                 // VisionJobの実行
@@ -1307,9 +1418,9 @@ int main(int argc, char** argv)
                     RCLCPP_INFO(node->get_logger(), "after 1sec");
 
                     //画像から積木のずれを特定
-                    pick_pose_msg = findRectanglePose(image_file, template_file, pick_pose_msg);
-                    pick_approach_pose_msg = pick_pose_msg;
-                    pick_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
+                    pick_approach_pose_msg = findRectanglePose(image_file, template_file, result_file, pick_approach_pose_msg, vj_pose_msg);
+                    pick_pose_msg = pick_approach_pose_msg;
+                    pick_pose_msg.pose.position.z -= 0.02; // 200mm上方
 
                 } else {
                         RCLCPP_INFO(node->get_logger(), "approach to vision job failed. vision job cancelled");
@@ -1337,7 +1448,7 @@ int main(int argc, char** argv)
             pt_success = move_group_interface.detachObject("pump_rubber");
         }
         planning_scene_interface.removeCollisionObjects({"pump_rubber"});
-        
+  
         // ターゲットAに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(2) + ".yaml";
         pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(2) + ".yaml";
@@ -1362,7 +1473,7 @@ int main(int argc, char** argv)
             if (!ct_success){
 
                 geometry_msgs::msg::PoseStamped new_pick_app_pose = pick_approach_pose_msg;
-    
+
                 // オリエンテーションをZ軸に180度回転
                 tf2::Quaternion q_app;
                 tf2::fromMsg(new_pick_app_pose.pose.orientation, q_app);
@@ -1370,7 +1481,7 @@ int main(int argc, char** argv)
                 q_rot_app.setRPY(0, 0, M_PI); // Z軸に180度回転
                 q_app = q_app * q_rot_app;
                 new_pick_app_pose.pose.orientation = tf2::toMsg(q_app);
-    
+
                 // 元の座標系のY方向に0.088移動
                 tf2::Vector3 translation_vector(0, 0.088, 0);
                 tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
@@ -1519,7 +1630,7 @@ int main(int argc, char** argv)
         // つかむ
         // 1秒待機
         if (!simulation_mode){
-            
+      
             bool is_success = false;
             while (!is_success){
                 is_success = set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
@@ -1527,7 +1638,7 @@ int main(int argc, char** argv)
                 RCLCPP_INFO(node->get_logger(), "before millisec");
                 rclcpp::sleep_for(std::chrono::milliseconds(500));
                 RCLCPP_INFO(node->get_logger(), "after millisec");
-                
+          
             }
             RCLCPP_INFO(node->get_logger(), "before ask");
             //rclcpp::sleep_for(1s);
@@ -1866,11 +1977,11 @@ int main(int argc, char** argv)
             }
 
         }
-      
+
         // 離す
 
         if (!simulation_mode) {
-           
+     
            bool is_success = false;
            while(!is_success){
                is_success = set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
@@ -1983,12 +2094,12 @@ int main(int argc, char** argv)
         RCLCPP_INFO(node->get_logger(), "after 0.5sec");
 
       }
-    
+
       index++;
-      
+
       //rclcpp::sleep_for(std::chrono::milliseconds(100));
 
-      
+
     }
     //rclcpp::spin_some(node); // ノードをスピンしてコールバックを処理
   }

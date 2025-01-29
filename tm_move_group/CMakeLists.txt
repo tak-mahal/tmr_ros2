@@ -36,6 +36,7 @@ find_package(tm_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(moveit_servo REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 if (moveit2_lib_auto_judge) 
 if ( NOT moveit_ros_planning_interface_FOUND)
@@ -59,6 +60,7 @@ if (moveit_ros_planning_interface_FOUND)
     moveit_servo
     "yaml-cpp"
     "OpenCV"
+    "ament_index_cpp"
   )
 
   target_link_libraries(run_move_group yaml-cpp)
