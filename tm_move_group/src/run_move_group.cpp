@@ -50,8 +50,15 @@
 //#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
+#include <cmath>
 
 using namespace std::chrono_literals;
+
+// ディレクトリパスを抽出するための関数
+std::string getDirectoryPath(const std::string& filePath) {
+    size_t pos = filePath.find_last_of("/\\");
+    return (std::string::npos == pos) ? "" : filePath.substr(0, pos + 1);
+}
 
 geometry_msgs::msg::PoseStamped transformVisionPose(
     const geometry_msgs::msg::PoseStamped& vision_pose,
@@ -138,7 +145,15 @@ cv::Mat scaleImage(const cv::Mat &src, double scale) {
 }
 
 // 中心からのずれと回転を考慮して新しいPoseを計算する関数
-geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path, const std::string& template_path, const std::string& result_path, const geometry_msgs::msg::PoseStamped& initial_pose, const geometry_msgs::msg::PoseStamped& vision_pose) {
+geometry_msgs::msg::PoseStamped findRectanglePose(
+    const std::string& image_path,
+    const std::string& template_path,
+    const std::string& stone_template_path,
+    const std::string& result_path,
+    const geometry_msgs::msg::PoseStamped& initial_pose,
+    const geometry_msgs::msg::PoseStamped& vision_pose,
+    int index) {
+
     const double REAL_WIDTH = 108.0;
     const double REAL_HEIGHT = 36.0;
 
@@ -173,6 +188,7 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
     }
 
     cv::Mat templateImg = cv::imread(template_path, cv::IMREAD_GRAYSCALE);
+    cv::Mat stoneTemplateImg = cv::imread(stone_template_path, cv::IMREAD_GRAYSCALE);
 
     int rangeWidth = image.cols - 400;
     int rangeHeight = image.rows - 900;
@@ -190,6 +206,9 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
 
     double templateWidthInPixels = static_cast<double>(templateImg.cols);
     double pixelsPerMm = templateWidthInPixels / REAL_WIDTH; // 1mmあたりのピクセル数
+
+    const std::vector<cv::Mat> templates = {templateImg, stoneTemplateImg};
+
 
     for (double scale = 1.0; scale <= maxScale; scale += scaleIncrement) {
         cv::Mat scaledTemplate = scaleImage(templateImg, scale);
@@ -216,7 +235,30 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
             }
         }
     }
+    /*
+    for (const auto& tmpl : templates) {
+        for (double angle = -5; angle <= 5; angle += angleIncrement) {
+            cv::Mat rotatedTemplate = rotateImage(tmpl, angle);
 
+            if (rotatedTemplate.cols > searchImage.cols || rotatedTemplate.rows > searchImage.rows) {
+                continue;
+            }
+
+            cv::Mat result;
+            cv::matchTemplate(searchImage, rotatedTemplate, result, cv::TM_CCOEFF_NORMED);
+
+            double minVal, maxVal;
+            cv::Point minLoc, maxLoc;
+            cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+
+            if (maxVal > bestMatchValue) {
+                bestMatchValue = maxVal;
+                bestMatchLocation = maxLoc;
+                bestRotationAngle = angle;
+            }
+        }
+    }
+    */
     cv::Point matchCenter(
         bestMatchLocation.x + static_cast<int>(templateImg.cols * bestScale / 2),
         bestMatchLocation.y + static_cast<int>(templateImg.rows * bestScale / 2)
@@ -227,6 +269,9 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
 
     double offsetXmm = offset.x / pixelsPerMm;
     double offsetYmm = offset.y / pixelsPerMm;
+
+    offsetXmm += 5;
+    offsetYmm += 5;
 
     // 結果を出力
     std::cout << "Best match value: " << bestMatchValue << std::endl;
@@ -241,10 +286,11 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
     std::string text4 = "Offset: (" + std::to_string(offsetXmm) + " mm, " + std::to_string(offsetYmm) + " mm)";
 
     // テキストを画像上に描画
-    cv::putText(searchImage, text1, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-    cv::putText(searchImage, text2, cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-    cv::putText(searchImage, text3, cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-    cv::putText(searchImage, text4, cv::Point(10, 90), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+    cv::putText(searchImage, text1, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
+    cv::putText(searchImage, text2, cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
+    cv::putText(searchImage, text3, cv::Point(10, 70), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
+    cv::putText(searchImage, text4, cv::Point(10, 90), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
+
 
     // 回転行列を使用してテンプレートの四隅を計算
     cv::Mat rotMat = cv::getRotationMatrix2D(cv::Point2f(0, 0), bestRotationAngle, bestScale);
@@ -272,8 +318,19 @@ geometry_msgs::msg::PoseStamped findRectanglePose(const std::string& image_path,
     // 結果を保存（オプション）
     cv::imwrite(result_path, image_small);
 
+    // ディレクトリパスを取得
+    std::string directory_path = getDirectoryPath(result_path);
 
-    if (bestMatchValue < 0.0){
+    // 元の画像を保存
+    std::string original_image_path = directory_path + std::to_string(index) + ".jpg";
+    cv::imwrite(original_image_path, image);
+
+    // 処理結果の画像を保存
+    std::string result_image_path = directory_path + std::to_string(index) + "r.jpg";
+    cv::imwrite(result_image_path, image_small);
+
+
+    if (bestMatchValue < 0.0 || std::abs(offsetXmm) > 10.0 || std::abs(offsetYmm) > 10.0 ){
         return initial_pose;
     } else {
 
@@ -616,10 +673,14 @@ int main(int argc, char** argv)
   //auto image_base = ament_index_cpp::get_package_share_directory(imagePackageName);
 
   // マシンに合わせてパスを変更する
+  //std::string base_folder = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/tm_move_group/src/";
+  //std::string image_base = "/home/tak-mahal/IsaacSim-ros_workspaces/humble_ws/src/tmr_ros2/custom_package/image/";
   std::string base_folder = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/tm_move_group/src/";
   std::string image_base = "/home/tak-mahal/ws_moveit2/src/tmr_ros2/custom_package/image/";
   std::string image_file = image_base + "tsumiki.jpg";
   std::string template_file = image_base + "white_template.jpg";
+  std::string stone_template_file = image_base + "stone_template.jpg";
+  //std::string acril_template_file = image_base + "acril_template.jpg";
   std::string result_file = image_base + "result.jpg";
 
   std::cout <<  base_folder << std::endl;
@@ -646,8 +707,8 @@ int main(int argc, char** argv)
   static const std::string PLANNING_GROUP = "tmr_arm";
 
   moveit::planning_interface::MoveGroupInterface move_group_interface(node, PLANNING_GROUP);
-/*
-*/
+  /*
+  */
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
 
   // add base plate to planning scene
@@ -722,7 +783,59 @@ int main(int argc, char** argv)
     wi++;
 
   }
+  /*
+  //天井を入れる
+  std::ifstream file_ceil(base_folder + "ceilings.csv");
+  std::string line_ceil;
+  int ci = 0;
+  while (std::getline(file_ceil, line_ceil)) {
+    std::stringstream ss_pose(line_ceil);
+    std::string value_pose;
+    std::vector<double> pose_values;
 
+    while (std::getline(ss_pose, value_pose, ',')) {
+      pose_values.push_back(std::stod(value_pose));
+    }
+
+    moveit_msgs::msg::CollisionObject object;
+    object.id = "ceiling_" + std::to_string(ci) ;
+    object.header.frame_id = "base";
+    object.primitives.resize(1);
+    object.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
+    object.primitives[0].dimensions = { 0.5, 0.5, 0.015};
+
+    geometry_msgs::msg::Pose pose;
+    pose.position.x = pose_values[0];
+    pose.position.y = pose_values[1];
+    pose.position.z = pose_values[2];
+    tf2::Quaternion q;
+    q.setRPY(pose_values[3], pose_values[4], pose_values[5]);
+    pose.orientation = tf2::toMsg(q);
+    object.pose = pose;
+    planning_scene_interface.applyCollisionObject(object);
+
+    ci++;
+
+  }
+
+  */
+  //頂部だけの天井
+  moveit_msgs::msg::CollisionObject ceil;
+  ceil.id = "ceiling_top";
+  ceil.header.frame_id = "base";
+  ceil.primitives.resize(1);
+  ceil.primitives[0].type = shape_msgs::msg::SolidPrimitive::CYLINDER;
+  ceil.primitives[0].dimensions = { 0.015, 0.5};
+
+  geometry_msgs::msg::Pose ceil_pose;
+  ceil_pose.position.x = 0.0;
+  ceil_pose.position.y = 0.0;
+  ceil_pose.position.z = 1.5;
+  tf2::Quaternion ceil_q;
+  ceil_q.setRPY(0, 0, 0);
+  ceil_pose.orientation = tf2::toMsg(ceil_q);
+  ceil.pose = ceil_pose;
+  planning_scene_interface.applyCollisionObject(ceil);
 
   // add pump rubber cylinder
   moveit_msgs::msg::CollisionObject pr;
@@ -943,6 +1056,7 @@ int main(int argc, char** argv)
   }else{
       move_group_interface.setMaxVelocityScalingFactor(0.4); // 速度スケーリングを5%に
       move_group_interface.setMaxAccelerationScalingFactor(0.4); // 加速度スケーリングを5%に
+      move_group_interface.setGoalPositionTolerance(0.001);
   }
 
 
@@ -1058,7 +1172,7 @@ int main(int argc, char** argv)
           "PRMkConfigDefault",
           "PRMstarkConfigDefault",
           //"FMTkConfigDefault",
-          "BFMTkConfigDefault",
+          //"BFMTkConfigDefault",
           "PDSTkConfigDefault",
           "STRIDEkConfigDefault",
           "BiTRRTkConfigDefault",
@@ -1070,7 +1184,7 @@ int main(int argc, char** argv)
           "SPARSkConfigDefault",
           "SPARStwokConfigDefault"
         };
-  
+
         move_group_interface.setPoseTarget(pose, "flange");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
@@ -1078,7 +1192,7 @@ int main(int argc, char** argv)
         if (cartesian) {
           moveit_msgs::msg::RobotTrajectory trajectory;
           success = (move_group_interface.computeCartesianPath(
-                      {pose.pose}, 0.01, 0.0, trajectory, true) >= 0.95);
+                      {pose.pose}, 0.01, 0.0, trajectory, true) >= 0.99);
 
           if (success) {
             plan.trajectory_ = trajectory;
@@ -1093,7 +1207,7 @@ int main(int argc, char** argv)
                   }
                   pose_list.push_back(pose.pose);
                   success = (move_group_interface.computeCartesianPath(
-                      pose_list, 0.01, 0.0, trajectory, true) >= 0.95);
+                      pose_list, 0.01, 0.0, trajectory, true) >= 0.99);
 
                   if (success){
                       break;
@@ -1142,7 +1256,7 @@ int main(int argc, char** argv)
         std::vector<std::string> planners = {
           "RRTConnectkConfigDefault"
         };
-  
+
         move_group_interface.setPoseTarget(pose, "flange");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
@@ -1236,9 +1350,9 @@ int main(int argc, char** argv)
           "SPARSkConfigDefault",
           "SPARStwokConfigDefault"
         };
-  
+
         if(cartesian){
-      
+  
             moveit_msgs::msg::OrientationConstraint orientation_constraint;
             orientation_constraint.header.frame_id = move_group_interface.getPoseReferenceFrame();
             orientation_constraint.link_name = "flange";
@@ -1274,7 +1388,7 @@ int main(int argc, char** argv)
             move_group_interface.setPlanningTime(5.0);
             //moveit_msgs::msg::Constraints orientation_constraints;
             //orientation_constraints.orientation_constraints.emplace_back(orientation_constraint);
-      
+  
 
         }
 
@@ -1375,7 +1489,7 @@ int main(int argc, char** argv)
                 bool pv_success = plan_and_execute_single(vj_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
 
                 if (!pv_success){
-              
+          
                     RCLCPP_INFO(node->get_logger(), "vision approach 180 degree rotation %d - %d", index, 1);
                     geometry_msgs::msg::PoseStamped new_vj_pose = vj_pose_msg;
 
@@ -1418,7 +1532,7 @@ int main(int argc, char** argv)
                     RCLCPP_INFO(node->get_logger(), "after 1sec");
 
                     //画像から積木のずれを特定
-                    pick_approach_pose_msg = findRectanglePose(image_file, template_file, result_file, pick_approach_pose_msg, vj_pose_msg);
+                    pick_approach_pose_msg = findRectanglePose(image_file, template_file, stone_template_file, result_file, pick_approach_pose_msg, vj_pose_msg, index);
                     pick_pose_msg = pick_approach_pose_msg;
                     pick_pose_msg.pose.position.z -= 0.02; // 200mm上方
 
@@ -1448,7 +1562,7 @@ int main(int argc, char** argv)
             pt_success = move_group_interface.detachObject("pump_rubber");
         }
         planning_scene_interface.removeCollisionObjects({"pump_rubber"});
-  
+
         // ターゲットAに移動（直線運動）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(2) + ".yaml";
         pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(2) + ".yaml";
@@ -1630,7 +1744,7 @@ int main(int argc, char** argv)
         // つかむ
         // 1秒待機
         if (!simulation_mode){
-      
+  
             bool is_success = false;
             while (!is_success){
                 is_success = set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_OFF);
@@ -1638,7 +1752,7 @@ int main(int argc, char** argv)
                 RCLCPP_INFO(node->get_logger(), "before millisec");
                 rclcpp::sleep_for(std::chrono::milliseconds(500));
                 RCLCPP_INFO(node->get_logger(), "after millisec");
-          
+      
             }
             RCLCPP_INFO(node->get_logger(), "before ask");
             //rclcpp::sleep_for(1s);
@@ -1981,7 +2095,7 @@ int main(int argc, char** argv)
         // 離す
 
         if (!simulation_mode) {
-     
+ 
            bool is_success = false;
            while(!is_success){
                is_success = set_io(set_node, tm_msgs::srv::SetIO::Request::MODULE_ENDEFFECTOR, tm_msgs::srv::SetIO::Request::TYPE_DIGITAL_OUT, 1, tm_msgs::srv::SetIO::Request::STATE_ON);
