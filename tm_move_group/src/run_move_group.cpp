@@ -78,7 +78,8 @@ geometry_msgs::msg::PoseStamped transformVisionPose(
     q_app.normalize();
 
     // 移動ベクトルをvision_poseのオリエンテーションで回転
-    tf2::Vector3 translation_vector(-offsetXmm / 1000.0, -offsetYmm / 1000.0, 0);
+    //tf2::Vector3 translation_vector(-offsetXmm / 1000.0, -offsetYmm / 1000.0, 0);
+    tf2::Vector3 translation_vector(0.0, -offsetYmm / 1000.0, 0);
     tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
     tf2::Vector3 rotated_translation = transform * translation_vector;
 
@@ -198,11 +199,11 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
     double bestMatchValue = -1;
     cv::Point bestMatchLocation;
     double bestRotationAngle = 0;
-    double bestScale = 1.0;
+    double bestScale = 1.05;
 
     double scaleIncrement = 0.01;
-    double maxScale = 1.05;
-    double angleIncrement = 0.5; // 角度の刻みを0.5度に設定
+    double maxScale = 1.10;
+    double angleIncrement = 0.25; // 角度の刻みを0.5度に設定
 
     double templateWidthInPixels = static_cast<double>(templateImg.cols);
     double pixelsPerMm = templateWidthInPixels / REAL_WIDTH; // 1mmあたりのピクセル数
@@ -210,10 +211,10 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
     const std::vector<cv::Mat> templates = {templateImg, stoneTemplateImg};
 
 
-    for (double scale = 1.0; scale <= maxScale; scale += scaleIncrement) {
+    for (double scale = 1.05; scale <= maxScale; scale += scaleIncrement) {
         cv::Mat scaledTemplate = scaleImage(templateImg, scale);
 
-        for (double angle = -5; angle <= 5; angle += angleIncrement) {
+        for (double angle = -2.5; angle <= 2.5; angle += angleIncrement) {
             cv::Mat rotatedTemplate = rotateImage(scaledTemplate, angle);
 
             if (rotatedTemplate.cols > searchImage.cols || rotatedTemplate.rows > searchImage.rows) {
@@ -702,7 +703,7 @@ int main(int argc, char** argv)
   auto vj_node = std::make_shared<rclcpp::Node>("send_job_script");
   rclcpp::Client<tm_msgs::srv::SendScript>::SharedPtr vj_client =
     node->create_client<tm_msgs::srv::SendScript>("send_script");
-  std::string vj_cmd = "Vision_DoJob(kyouyou3)";
+  std::string vj_cmd = "Vision_DoJob(kyouyou4)";
 
   static const std::string PLANNING_GROUP = "tmr_arm";
 
@@ -861,7 +862,7 @@ int main(int argc, char** argv)
   dm.header.frame_id = "flange";
   dm.primitives.resize(1);
   dm.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-  dm.primitives[0].dimensions = { 0.120, 0.048, 0.030 };
+  dm.primitives[0].dimensions = { 0.122, 0.050, 0.030 };
 
   geometry_msgs::msg::Pose dm_pose;
   dm_pose.position.x = 0;
@@ -1482,7 +1483,7 @@ int main(int argc, char** argv)
             auto plan = loadPlanFromYAML(plan_path);
             move_group_interface.execute(plan);
         } else {
-            if (vision_mode && index >= 300){
+            if (vision_mode && index >= 0){
 
                 RCLCPP_INFO(node->get_logger(), "vision approach %d - %d", index, 1);
                 geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
@@ -1550,6 +1551,16 @@ int main(int argc, char** argv)
             //plan_and_execute(pick_approach_pose_msg, false, index, 1, plan_path, pose_path);
             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
             bool pe1_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
+            current_pose = move_group_interface.getCurrentPose();
+
+            double diff_x = current_pose.pose.position.x - pick_approach_pose_msg.pose.position.x;
+            double diff_y = current_pose.pose.position.y - pick_approach_pose_msg.pose.position.y;
+            double diff_z = current_pose.pose.position.z - pick_approach_pose_msg.pose.position.z;
+
+            RCLCPP_INFO_STREAM(node->get_logger(), "Diff_x: " << diff_x);
+            RCLCPP_INFO_STREAM(node->get_logger(), "Diff_y: " << diff_y);
+            RCLCPP_INFO_STREAM(node->get_logger(), "Diff_z: " << diff_z);
+
         }
         // 衝突回避用先端ゴムをデタッチ
         RCLCPP_INFO(node->get_logger(), "before 3sec");
@@ -1867,7 +1878,7 @@ int main(int argc, char** argv)
         dm2.header.frame_id = "flange";
         dm2.primitives.resize(1);
         dm2.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-        dm2.primitives[0].dimensions = { 0.120, 0.048, 0.030 };
+        dm2.primitives[0].dimensions = { 0.122, 0.050, 0.030 };
 
         geometry_msgs::msg::Pose dm2_pose;
         dm2_pose.position.x = 0;
@@ -1899,8 +1910,18 @@ int main(int argc, char** argv)
         } else {
            //plan_and_execute(place_approach_pose_msg, false, index ,4, plan_path, pose_path);
 
-           geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
-           plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
+            geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
+            plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
+            current_pose = move_group_interface.getCurrentPose();
+
+            double diff_x = current_pose.pose.position.x - place_approach_pose_msg.pose.position.x;
+            double diff_y = current_pose.pose.position.y - place_approach_pose_msg.pose.position.y;
+            double diff_z = current_pose.pose.position.z - place_approach_pose_msg.pose.position.z;
+
+            RCLCPP_INFO_STREAM(node->get_logger(), "Diff_x: " << diff_x);
+            RCLCPP_INFO_STREAM(node->get_logger(), "Diff_y: " << diff_y);
+            RCLCPP_INFO_STREAM(node->get_logger(), "Diff_z: " << diff_z);
+
         }
 
         RCLCPP_INFO(node->get_logger(), "before 1sec");
