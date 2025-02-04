@@ -203,7 +203,7 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
 
     double scaleIncrement = 0.01;
     double maxScale = 1.10;
-    double angleIncrement = 0.25; // 角度の刻みを0.5度に設定
+    double angleIncrement = 0.2; // 角度の刻みを0.5度に設定
 
     double templateWidthInPixels = static_cast<double>(templateImg.cols);
     double pixelsPerMm = templateWidthInPixels / REAL_WIDTH; // 1mmあたりのピクセル数
@@ -214,7 +214,7 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
     for (double scale = 1.05; scale <= maxScale; scale += scaleIncrement) {
         cv::Mat scaledTemplate = scaleImage(templateImg, scale);
 
-        for (double angle = -2.5; angle <= 2.5; angle += angleIncrement) {
+        for (double angle = -1.4; angle <= 1.4; angle += angleIncrement) {
             cv::Mat rotatedTemplate = rotateImage(scaledTemplate, angle);
 
             if (rotatedTemplate.cols > searchImage.cols || rotatedTemplate.rows > searchImage.rows) {
@@ -862,7 +862,7 @@ int main(int argc, char** argv)
   dm.header.frame_id = "flange";
   dm.primitives.resize(1);
   dm.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-  dm.primitives[0].dimensions = { 0.122, 0.050, 0.030 };
+  dm.primitives[0].dimensions = { 0.120, 0.048, 0.030 };
 
   geometry_msgs::msg::Pose dm_pose;
   dm_pose.position.x = 0;
@@ -1868,9 +1868,9 @@ int main(int argc, char** argv)
             }
         }
 
-        RCLCPP_INFO(node->get_logger(), "before 1sec");
-        rclcpp::sleep_for(1s);
-        RCLCPP_INFO(node->get_logger(), "after 1sec");
+        //RCLCPP_INFO(node->get_logger(), "before 1sec");
+        //rclcpp::sleep_for(1s);
+        //RCLCPP_INFO(node->get_logger(), "after 1sec");
 
         // add dummy tsumiki
         moveit_msgs::msg::CollisionObject dm2;
@@ -1878,7 +1878,7 @@ int main(int argc, char** argv)
         dm2.header.frame_id = "flange";
         dm2.primitives.resize(1);
         dm2.primitives[0].type = shape_msgs::msg::SolidPrimitive::BOX;
-        dm2.primitives[0].dimensions = { 0.122, 0.050, 0.030 };
+        dm2.primitives[0].dimensions = { 0.120, 0.048, 0.030 };
 
         geometry_msgs::msg::Pose dm2_pose;
         dm2_pose.position.x = 0;
@@ -1894,9 +1894,9 @@ int main(int argc, char** argv)
         dm_success = move_group_interface.attachObject("dummy_tsumiki");
         RCLCPP_INFO(node->get_logger(), "attached object: %s", "dummy_tsumiki");
 
-        RCLCPP_INFO(node->get_logger(), "before 2sec");
-        rclcpp::sleep_for(2s);
-        RCLCPP_INFO(node->get_logger(), "after 2sec");
+        RCLCPP_INFO(node->get_logger(), "before 3sec");
+        rclcpp::sleep_for(3s);
+        RCLCPP_INFO(node->get_logger(), "after 3sec");
 
         // アプローチ用のターゲットBに移動（通常のプランニング）
         plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(4) + ".yaml";
@@ -2164,9 +2164,6 @@ int main(int argc, char** argv)
            }
         }
 
-        RCLCPP_INFO(node->get_logger(), "before 1sec");
-        rclcpp::sleep_for(1s);
-        RCLCPP_INFO(node->get_logger(), "after 1sec");
         // add pump rubber cylinder
         moveit_msgs::msg::CollisionObject pr2;
         pr2.id = "pump_rubber";
@@ -2217,16 +2214,19 @@ int main(int argc, char** argv)
         // Collision ObjectのPoseを変更
         collision_object.pose = new_pose;
 
-        RCLCPP_INFO(node->get_logger(), "before 0.5sec");
-        rclcpp::sleep_for(std::chrono::milliseconds(500));
-        RCLCPP_INFO(node->get_logger(), "after 0.5sec");
+        //RCLCPP_INFO(node->get_logger(), "before 0.5sec");
+        //rclcpp::sleep_for(std::chrono::milliseconds(500));
+        //RCLCPP_INFO(node->get_logger(), "after 0.5sec");
 
         // 変更したCollision Objectを更新する
         planning_scene_interface.applyCollisionObject(collision_object);
 
-        RCLCPP_INFO(node->get_logger(), "before 0.5sec");
-        rclcpp::sleep_for(std::chrono::milliseconds(500));
-        RCLCPP_INFO(node->get_logger(), "after 0.5sec");
+        //RCLCPP_INFO(node->get_logger(), "before 0.5sec");
+        //rclcpp::sleep_for(std::chrono::milliseconds(500));
+        //RCLCPP_INFO(node->get_logger(), "after 0.5sec");
+        RCLCPP_INFO(node->get_logger(), "before 1sec");
+        rclcpp::sleep_for(1s);
+        RCLCPP_INFO(node->get_logger(), "after 1sec");
 
       }
 
