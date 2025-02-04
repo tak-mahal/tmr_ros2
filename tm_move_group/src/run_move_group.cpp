@@ -331,7 +331,7 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
     cv::imwrite(result_image_path, image_small);
 
 
-    if (bestMatchValue < 0.0 || std::abs(offsetXmm) > 10.0 || std::abs(offsetYmm) > 10.0 ){
+    if (bestMatchValue < 0.0 || std::abs(offsetXmm) > 10.0 || std::abs(offsetYmm) > 7.0 ){
         return initial_pose;
     } else {
 
