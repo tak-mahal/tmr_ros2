@@ -101,7 +101,7 @@ geometry_msgs::msg::PoseStamped transformVisionPose(
     vj_app = vj_app * vj_rot_app;
     new_pose.pose.orientation = tf2::toMsg(vj_app);
 
-    tf2::Vector3 translation_vector2(0, -0.075+0.044, 0);
+    tf2::Vector3 translation_vector2(0, -0.075-0.044, 0);
     tf2::Transform transform2(vj_app, tf2::Vector3(0, 0, 0));
     tf2::Vector3 rotated_translation2 = transform2 * translation_vector2;
     new_pose.pose.position.x += rotated_translation2.x();
@@ -199,10 +199,10 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
     double bestMatchValue = -1;
     cv::Point bestMatchLocation;
     double bestRotationAngle = 0;
-    double bestScale = 1.05;
+    double bestScale = 1.00;
 
     double scaleIncrement = 0.01;
-    double maxScale = 1.10;
+    double maxScale = 1.05;
     double angleIncrement = 0.2; // 角度の刻みを0.5度に設定
 
     double templateWidthInPixels = static_cast<double>(templateImg.cols);
@@ -211,7 +211,7 @@ geometry_msgs::msg::PoseStamped findRectanglePose(
     const std::vector<cv::Mat> templates = {templateImg, stoneTemplateImg};
 
 
-    for (double scale = 1.05; scale <= maxScale; scale += scaleIncrement) {
+    for (double scale = 1.00; scale <= maxScale; scale += scaleIncrement) {
         cv::Mat scaledTemplate = scaleImage(templateImg, scale);
 
         for (double angle = -1.4; angle <= 1.4; angle += angleIncrement) {
@@ -820,6 +820,7 @@ int main(int argc, char** argv)
   }
 
   */
+  
   //頂部だけの天井
   moveit_msgs::msg::CollisionObject ceil;
   ceil.id = "ceiling_top";
@@ -837,7 +838,7 @@ int main(int argc, char** argv)
   ceil_pose.orientation = tf2::toMsg(ceil_q);
   ceil.pose = ceil_pose;
   planning_scene_interface.applyCollisionObject(ceil);
-
+  
   // add pump rubber cylinder
   moveit_msgs::msg::CollisionObject pr;
   pr.id = "pump_rubber";
@@ -849,7 +850,7 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose pr_pose;
   pr_pose.position.x = 0;
   pr_pose.position.y = -0.044;
-  pr_pose.position.z = 0.210 ;
+  pr_pose.position.z = 0.215 ;
   tf2::Quaternion pr_q;
   pr_q.setRPY(0, 0, 0);
   pr_pose.orientation = tf2::toMsg(pr_q);
@@ -867,7 +868,7 @@ int main(int argc, char** argv)
   geometry_msgs::msg::Pose dm_pose;
   dm_pose.position.x = 0;
   dm_pose.position.y = -0.044;
-  dm_pose.position.z = 0.210 ;
+  dm_pose.position.z = 0.215 ;
   tf2::Quaternion dm_q;
   dm_q.setRPY(0, 0, 0);
   dm_pose.orientation = tf2::toMsg(dm_q);
@@ -1002,7 +1003,8 @@ int main(int argc, char** argv)
               tf2::fromMsg(pose, current_transform);
 
               // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-              tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
+              //tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
+              tf2::Vector3 translation_offset(0, 0.0, 0.009+0.009);
 
               // オフセットを現在の座標系に対して適用
               tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
@@ -1130,10 +1132,10 @@ int main(int argc, char** argv)
 
       // アプローチ用のターゲットBを計算
       geometry_msgs::msg::PoseStamped pick_approach_pose_msg = pick_pose_msg;
-      pick_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
+      pick_approach_pose_msg.pose.position.z += 0.03; // 200mm上方
 
       geometry_msgs::msg::PoseStamped place_approach_pose_msg = place_pose_msg;
-      place_approach_pose_msg.pose.position.z += 0.02; // 200mm上方
+      place_approach_pose_msg.pose.position.z += 0.03; // 200mm上方
 
       // vj_pose_msgの定義
       geometry_msgs::msg::PoseStamped vj_pose_msg = pick_approach_pose_msg;
@@ -1147,7 +1149,8 @@ int main(int argc, char** argv)
       vj_app = vj_app * vj_rot_app;
       vj_pose_msg.pose.orientation = tf2::toMsg(vj_app);
 
-      tf2::Vector3 translation_vector(0, -0.075+0.044, 0);
+      //tf2::Vector3 translation_vector(0, -0.075+0.044, 0);
+      tf2::Vector3 translation_vector(0, -0.075-0.044, 0);
       tf2::Transform transform(vj_app, tf2::Vector3(0, 0, 0));
       tf2::Vector3 rotated_translation = transform * translation_vector;
       vj_pose_msg.pose.position.x += rotated_translation.x();
@@ -1186,7 +1189,9 @@ int main(int argc, char** argv)
           "SPARStwokConfigDefault"
         };
 
-        move_group_interface.setPoseTarget(pose, "flange");
+        move_group_interface.setPoseTarget(pose, "ecbpi_tcp");
+        move_group_interface.setEndEffectorLink("ecbpi_tcp");
+        //move_group_interface.setPoseReferenceFrame("ecbpi_tcp");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
 
@@ -1258,7 +1263,9 @@ int main(int argc, char** argv)
           "RRTConnectkConfigDefault"
         };
 
-        move_group_interface.setPoseTarget(pose, "flange");
+        move_group_interface.setPoseTarget(pose, "ecbpi_tcp");
+        move_group_interface.setEndEffectorLink("ecbpi_tcp");
+        //move_group_interface.setPoseReferenceFrame("ecbpi_tcp");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
 
@@ -1374,7 +1381,7 @@ int main(int argc, char** argv)
             geometry_msgs::msg::Pose line_pose;
             line_pose.position.x = pose.pose.position.x;
             line_pose.position.y = pose.pose.position.y;
-            line_pose.position.z = pose.pose.position.z - 0.02;
+            line_pose.position.z = pose.pose.position.z - 0.03;
             line_pose.orientation = pose.pose.orientation;
             //line_pose.orientation.y = 0.0;
             //line_pose.orientation.z = 0.0;
@@ -1393,7 +1400,9 @@ int main(int argc, char** argv)
 
         }
 
-        move_group_interface.setPoseTarget(pose, "flange");
+        move_group_interface.setPoseTarget(pose, "ecbpi_tcp");
+        move_group_interface.setEndEffectorLink("ecbpi_tcp");
+        //move_group_interface.setPoseReferenceFrame("ecbpi_tcp");
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         bool success;
 
@@ -1437,10 +1446,6 @@ int main(int argc, char** argv)
       if (index >= number){
 
 
-        RCLCPP_INFO(node->get_logger(), "before 3sec");
-        rclcpp::sleep_for(3s);
-        RCLCPP_INFO(node->get_logger(), "after 3sec");
-
         // ダミー積木ををデタッチ
         planning_scene_interface.removeCollisionObjects({"dummy_tsumiki"});
 
@@ -1450,9 +1455,14 @@ int main(int argc, char** argv)
             pt_success = move_group_interface.attachObject("pump_rubber");
         }
 
+        RCLCPP_INFO(node->get_logger(), "before 2sec");
+        rclcpp::sleep_for(2s);
+        RCLCPP_INFO(node->get_logger(), "after 2sec");
+        
         if(index == number){
             //オブジェクトの読み込み待ち
             rclcpp::sleep_for(10s);
+            /*
             std::string file_path;
             //初期状態または前ステップ終了状態に移動
             if (number == 0) {
@@ -1469,9 +1479,9 @@ int main(int argc, char** argv)
             } else {
                 RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to read positions from YAML file.");
             }
-
+            */
         }
-
+        
         // アプローチ用のターゲットBに移動（通常のプランニング）
         std::string plan_path = plan_folder + "plan_" + std::to_string(index) + "_" + std::to_string(1) + ".yaml";
         std::string pose_path = pose_folder + "target_pose_" + std::to_string(index) + "_" + std::to_string(1) + ".yaml";
@@ -1503,7 +1513,7 @@ int main(int argc, char** argv)
                     new_vj_pose.pose.orientation = tf2::toMsg(q_app);
 
                     // 元の座標系のY方向に-0.075移動
-                    tf2::Vector3 translation_vector(0, -0.15, 0);
+                    tf2::Vector3 translation_vector(0, -0.15-0.088, 0);
                     tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
                     tf2::Vector3 rotated_translation = transform * translation_vector;
                     new_vj_pose.pose.position.x += rotated_translation.x();
@@ -1535,7 +1545,7 @@ int main(int argc, char** argv)
                     //画像から積木のずれを特定
                     pick_approach_pose_msg = findRectanglePose(image_file, template_file, stone_template_file, result_file, pick_approach_pose_msg, vj_pose_msg, index);
                     pick_pose_msg = pick_approach_pose_msg;
-                    pick_pose_msg.pose.position.z -= 0.02; // 200mm上方
+                    pick_pose_msg.pose.position.z -= 0.03; // 200mm上方
 
                 } else {
                         RCLCPP_INFO(node->get_logger(), "approach to vision job failed. vision job cancelled");
@@ -1552,6 +1562,35 @@ int main(int argc, char** argv)
             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
             bool pe1_success = plan_and_execute_try_all(pick_approach_pose_msg, current_pose, false, index, 1, plan_path, pose_path);
             current_pose = move_group_interface.getCurrentPose();
+            if (!pe1_success){
+
+                geometry_msgs::msg::PoseStamped new_pick_app_pose = pick_approach_pose_msg;
+
+                // オリエンテーションをZ軸に180度回転
+                tf2::Quaternion q_app;
+                tf2::fromMsg(new_pick_app_pose.pose.orientation, q_app);
+                tf2::Quaternion q_rot_app;
+                q_rot_app.setRPY(0, 0, M_PI); // Z軸に180度回転
+                q_app = q_app * q_rot_app;
+                new_pick_app_pose.pose.orientation = tf2::toMsg(q_app);
+
+                // 元の座標系のY方向に0.088移動
+                //tf2::Vector3 translation_vector(0, 0.088, 0);
+                tf2::Vector3 translation_vector(0, 0.0, 0);
+                tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
+                tf2::Vector3 rotated_translation = transform * translation_vector;
+                new_pick_app_pose.pose.position.x += rotated_translation.x();
+                new_pick_app_pose.pose.position.y += rotated_translation.y();
+                new_pick_app_pose.pose.position.z += rotated_translation.z();
+
+                pe1_success = plan_and_execute_try_all(new_pick_app_pose, current_pose, false, index, 1, plan_path, pose_path);
+                
+                pick_approach_pose_msg = new_pick_app_pose;
+
+                pick_pose_msg = pick_approach_pose_msg;
+                pick_pose_msg.pose.position.z -= 0.03;  
+
+            }
 
             double diff_x = current_pose.pose.position.x - pick_approach_pose_msg.pose.position.x;
             double diff_y = current_pose.pose.position.y - pick_approach_pose_msg.pose.position.y;
@@ -1608,7 +1647,8 @@ int main(int argc, char** argv)
                 new_pick_app_pose.pose.orientation = tf2::toMsg(q_app);
 
                 // 元の座標系のY方向に0.088移動
-                tf2::Vector3 translation_vector(0, 0.088, 0);
+                //tf2::Vector3 translation_vector(0, 0.088, 0);
+                tf2::Vector3 translation_vector(0, 0.0, 0);
                 tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
                 tf2::Vector3 rotated_translation = transform * translation_vector;
                 new_pick_app_pose.pose.position.x += rotated_translation.x();
@@ -1617,9 +1657,9 @@ int main(int argc, char** argv)
 
 
                 // 衝突回避用先端ゴムをアタッチ
-                RCLCPP_INFO(node->get_logger(), "before 2sec");
+                RCLCPP_INFO(node->get_logger(), "before 1sec");
                 rclcpp::sleep_for(1s);
-                RCLCPP_INFO(node->get_logger(), "after 2sec");
+                RCLCPP_INFO(node->get_logger(), "after 1sec");
 
                 bool pt_success = false;
                 while(!pt_success) {
@@ -1883,12 +1923,16 @@ int main(int argc, char** argv)
         geometry_msgs::msg::Pose dm2_pose;
         dm2_pose.position.x = 0;
         dm2_pose.position.y = -0.044;
-        dm2_pose.position.z = 0.210 ;
+        dm2_pose.position.z = 0.215 ;
         tf2::Quaternion dm_q2;
         dm_q2.setRPY(0, 0, 0);
         dm2_pose.orientation = tf2::toMsg(dm_q2);
         dm2.pose = dm2_pose;
         planning_scene_interface.applyCollisionObject(dm2);
+
+        RCLCPP_INFO(node->get_logger(), "before 1sec");
+        rclcpp::sleep_for(1s);
+        RCLCPP_INFO(node->get_logger(), "after 1sec");
 
         bool dm_success = false;
         dm_success = move_group_interface.attachObject("dummy_tsumiki");
@@ -1911,8 +1955,39 @@ int main(int argc, char** argv)
            //plan_and_execute(place_approach_pose_msg, false, index ,4, plan_path, pose_path);
 
             geometry_msgs::msg::PoseStamped current_pose = move_group_interface.getCurrentPose();
-            plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
+            bool pe2_success = plan_and_execute_try_all(place_approach_pose_msg, current_pose, false, index ,4, plan_path, pose_path);
             current_pose = move_group_interface.getCurrentPose();
+
+            if (!pe2_success){
+
+                geometry_msgs::msg::PoseStamped new_place_app_pose = place_approach_pose_msg;
+
+                // オリエンテーションをZ軸に180度回転
+                tf2::Quaternion q_app;
+                tf2::fromMsg(new_place_app_pose.pose.orientation, q_app);
+                tf2::Quaternion q_rot_app;
+                q_rot_app.setRPY(0, 0, M_PI); // Z軸に180度回転
+                q_app = q_app * q_rot_app;
+                new_place_app_pose.pose.orientation = tf2::toMsg(q_app);
+
+                // 元の座標系のY方向に0.088移動
+                //tf2::Vector3 translation_vector(0, 0.088, 0);
+                tf2::Vector3 translation_vector(0, 0.0, 0);
+                tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
+                tf2::Vector3 rotated_translation = transform * translation_vector;
+                new_place_app_pose.pose.position.x += rotated_translation.x();
+                new_place_app_pose.pose.position.y += rotated_translation.y();
+                new_place_app_pose.pose.position.z += rotated_translation.z();
+
+                pe2_success = plan_and_execute_try_all(new_place_app_pose, current_pose, false, index, 1, plan_path, pose_path);
+                
+                place_approach_pose_msg = new_place_app_pose;
+
+                place_pose_msg = place_approach_pose_msg;
+                place_pose_msg.pose.position.z -= 0.03;  
+
+            }
+
 
             double diff_x = current_pose.pose.position.x - place_approach_pose_msg.pose.position.x;
             double diff_y = current_pose.pose.position.y - place_approach_pose_msg.pose.position.y;
@@ -1976,7 +2051,8 @@ int main(int argc, char** argv)
                 new_place_app_pose.pose.orientation = tf2::toMsg(q_app);
 
                 // 元の座標系のY方向に0.088移動
-                tf2::Vector3 translation_vector(0, 0.088, 0);
+                //tf2::Vector3 translation_vector(0, 0.088, 0);
+                tf2::Vector3 translation_vector(0, 0.0, 0);
                 tf2::Transform transform(q_app, tf2::Vector3(0, 0, 0));
                 tf2::Vector3 rotated_translation = transform * translation_vector;
                 new_place_app_pose.pose.position.x += rotated_translation.x();
@@ -2175,7 +2251,7 @@ int main(int argc, char** argv)
         geometry_msgs::msg::Pose pr2_pose;
         pr2_pose.position.x = 0;
         pr2_pose.position.y = -0.044;
-        pr2_pose.position.z = 0.210 ;
+        pr2_pose.position.z = 0.215 ;
         tf2::Quaternion pr2_q;
         pr2_q.setRPY(0, 0, 0);
         pr2_pose.orientation = tf2::toMsg(pr2_q);
@@ -2195,7 +2271,8 @@ int main(int argc, char** argv)
         tf2::fromMsg(current_pose, current_transform);
 
         // 移動させたいオフセット（例えば、X方向に0.1、Y方向に0.2、Z方向に0.3）
-        tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
+        //tf2::Vector3 translation_offset(0, -0.044, 0.204+0.009);
+        tf2::Vector3 translation_offset(0, 0.0, 0.009+0.009);
 
        // オフセットを現在の座標系に対して適用
         tf2::Transform offset_transform(tf2::Quaternion::getIdentity(), translation_offset);
@@ -2218,15 +2295,19 @@ int main(int argc, char** argv)
         //rclcpp::sleep_for(std::chrono::milliseconds(500));
         //RCLCPP_INFO(node->get_logger(), "after 0.5sec");
 
+        RCLCPP_INFO(node->get_logger(), "before 1sec");
+        rclcpp::sleep_for(1s);
+        RCLCPP_INFO(node->get_logger(), "after 1sec");
+
         // 変更したCollision Objectを更新する
         planning_scene_interface.applyCollisionObject(collision_object);
 
         //RCLCPP_INFO(node->get_logger(), "before 0.5sec");
         //rclcpp::sleep_for(std::chrono::milliseconds(500));
         //RCLCPP_INFO(node->get_logger(), "after 0.5sec");
-        RCLCPP_INFO(node->get_logger(), "before 1sec");
-        rclcpp::sleep_for(1s);
-        RCLCPP_INFO(node->get_logger(), "after 1sec");
+        RCLCPP_INFO(node->get_logger(), "before 2sec");
+        rclcpp::sleep_for(2s);
+        RCLCPP_INFO(node->get_logger(), "after 2sec");
 
       }
 

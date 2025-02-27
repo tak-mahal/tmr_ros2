@@ -14,7 +14,7 @@
         <inertia ixx="0.003084" ixy="0.0" ixz="0.0" iyy="0.002999" iyz="0.0" izz="0.000546" />
       </inertial>-->
       <visual>
-        <!--origin xyz="0 0 0.0" rpy="0 0 0"/-->
+        <origin xyz="0 0 0.0" rpy="0 0 ${0.5*pi}"/>
         <geometry>          
           <mesh filename="file://$(find tm_description)/meshes/ecbpi/visual/ecbpi.dae"/>          
         </geometry>
@@ -32,19 +32,19 @@
         </material>        
       </visual>-->      
       <collision>
-        <origin xyz="-0.044 0 0.05" rpy="0 0 0"/>
+        <origin xyz="0 -0.044 0.05" rpy="0 0 0"/>
         <geometry>          
           <cylinder radius="0.09" length="0.1"/>
         </geometry>       
       </collision>
       <collision>
-        <origin xyz="-0.044 0 0.14" rpy="0 0 0"/>
+        <origin xyz="0 -0.044 0.14" rpy="0 0 0"/>
         <geometry>
           <cylinder radius="0.030" length="0.08"/>
         </geometry>
       </collision>      
       <collision>
-        <origin xyz="0.07 0 0.01" rpy="0 0 0"/>
+        <origin xyz="0 0.07 0.01" rpy="0 0 0"/>
         <geometry>
           <cylinder radius="0.04" length="0.1"/>
         </geometry>
@@ -53,7 +53,8 @@
     <joint name="${parent_link}_to_ecbpi_joint" type="fixed">
       <parent link="${parent_link}"/>
       <child link="ecbpi_base"/>
-      <origin xyz="0 0 0" rpy="0 0 ${0.5*pi}"/>      
+      <origin xyz="0 0 0" rpy="0 0 0"/>      
+      <!--origin xyz="0 0 0" rpy="0 0 ${0.5*pi}"/-->      
     </joint>
     <link name="ecbpi_tcp">
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -61,7 +62,8 @@
     <joint name="ecbpi_bast_to_tcp" type="fixed">
       <parent link="ecbpi_base"/>
       <child link="ecbpi_tcp"/>
-      <origin xyz = "-0.044 0 0.195" rpy="0 0 0"/> 
+      <origin xyz = "0 -0.044 0.195" rpy="0 0 0"/> 
+      <!--origin xyz = "-0.044 0 0.195" rpy="0 0 0"/--> 
     </joint>
     <xacro:ecbpi_hand_gazebo robot_name="${robot_name}" />    
   </xacro:macro>
